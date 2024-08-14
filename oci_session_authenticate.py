@@ -48,7 +48,7 @@ def authenticate_via_oauth():
     print(f"Please visit this URL and enter the code to authorize the application: {verification_url}")
     print(f"User code: {user_code}")
 
-    #  3: Wait for the user to enter the device code
+    #  3: Wait for the user to enter the user code
     input("Press Enter after you have authorized the application...")
 
     #  4: Exchange the device code for an access token
