@@ -1,17 +1,23 @@
 
 import argparse
 import requests
+import json
 
+def str2bool(v):
+    return v.lower() in ('yes', 'true', 't', '1')
 def set_token_exchange_trust(args):
     url = args.url
+    with open(args.token, 'r') as token_file:
+        token = token_file.read().strip()
+
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "python-requests/2.26.0",
-        "Authorization": "Bearer " + args.token
+        "Authorization": "Bearer " + token
     }
     payload = {
         "active": True,
-        "allowImpersonation": False,
+        "allowImpersonation": args.allowImpersonation,
         "issuer": args.issuer,
         "name": args.name,
         "oauthClients": [args.oauthClients],
@@ -22,6 +28,11 @@ def set_token_exchange_trust(args):
         "type": args.type,
         "schemas": ["urn:ietf:params:scim:schemas:oracle:idcs:IdentityPropagationTrust"]
     }
+
+    if args.allowImpersonation:
+        json_string = '[{"rule": "workflow co \\"Token\\"","userId": "github"}]'
+        impersonation_service_users = json.loads(json_string)
+        payload["impersonationServiceUser"] = impersonation_service_users
 
     response = requests.request("POST", url, json=payload, headers=headers)
     print(response.text)
@@ -38,5 +49,7 @@ if __name__ == '__main__':
     parser.add_argument('--subjectMappingAttribute', required=True, help='Subject Mapping Attribute, name of the attribute in the identity domain that contains the subject identifier')
     parser.add_argument('--subjectType', required=True, help='Subject Type')
     parser.add_argument('--type', required=True, help='Type, type of trust configuration to create ( JWT or SAML)')
+    parser.add_argument('--allowImpersonation', type=str2bool, required=False, help='Allow Impersonation')
+
     args = parser.parse_args()
     set_token_exchange_trust(args)

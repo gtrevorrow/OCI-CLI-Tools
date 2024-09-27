@@ -5,6 +5,7 @@ import json
 
 def create_service_user(host, token, user_name):
     url = f"{host}/admin/v1/Users"
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}"
@@ -45,4 +46,6 @@ if __name__ == '__main__':
     parser.add_argument('--user_name', required=True, help='Service User Name')
 
     args = parser.parse_args()
-    create_service_user(args.host, args.token, args.user_name)
+    with open(args.token, 'r') as token_file:
+        token = token_file.read().strip()
+    create_service_user(args.host, token, args.user_name)

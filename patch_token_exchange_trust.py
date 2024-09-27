@@ -1,13 +1,18 @@
 import argparse
 import requests
+import json
 
+def str2bool(v):
+    return v.lower() in ('yes', 'true', 't', '1')
 
 def patch_token_exchange_trust(args):
     url = args.url + "/" + args.id
+    with open(args.token, 'r') as token_file:
+        token = token_file.read().strip()
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "python-requests/2.26.0",
-        "Authorization": "Bearer " + args.token
+        "Authorization": "Bearer " + token
     }
     operations = []
 
@@ -31,6 +36,12 @@ def patch_token_exchange_trust(args):
         operations.append({"op": "replace", "path": "subjectType", "value": args.subjectType})
     if args.type is not None:
         operations.append({"op": "replace", "path": "type", "value": args.type})
+    if args.impersonationServiceUsers is not None:
+        json_string = '[{"rule": "workflow co \\"Token\\"","userId": "github"}]'
+        impersonation_service_users = json.loads(json_string)
+        operations.append({"op": "replace", "path": "impersonationServiceUsers", "value": impersonation_service_users})
+
+    print(operations)
 
     payload = {
         "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
@@ -56,8 +67,9 @@ if __name__ == '__main__':
     parser.add_argument('--subjectType', required=False, help='Subject Type')
     parser.add_argument('--type', required=False, help='Type, type of trust configuration to create ( JWT or SAML)')
     parser.add_argument('--id', required=True, help='ID of the trust configuration')
-    parser.add_argument('--allowImpersonation', required=False, help='Allow Impersonation')
+    parser.add_argument('--allowImpersonation', required=False, type=str2bool, help='Allow Impersonation')
     parser.add_argument('--active', required=False, help='Active')
+    parser.add_argument('--impersonationServiceUsers', required=False, help='Impersonating Service User matching rules')
 
     args = parser.parse_args()
     patch_token_exchange_trust(args)
