@@ -1,14 +1,16 @@
-
 import argparse
 import requests
 import json
 import toml
 
+
 def str2bool(v):
     return v.lower() in ('yes', 'true', 't', '1')
-def set_token_exchange_trust(args):
+
+
+def put_token_exchange_trust(args):
     config = toml.load(args.configFile)
-    url = config['url']
+    url = config['url'] + "/" + args.id
     with open(args.token, 'r') as token_file:
         token = token_file.read().strip()
 
@@ -17,9 +19,10 @@ def set_token_exchange_trust(args):
         "User-Agent": "python-requests/2.26.0",
         "Authorization": "Bearer " + token
     }
+
     payload = {
         "active": True,
-        "allowImpersonation": str2bool(config['allowImpersonation']),
+        "allowImpersonation": (config['allowImpersonation']),
         "issuer": config['issuer'],
         "name": config['name'],
         "oauthClients": [config['oauthClients']],
@@ -31,22 +34,28 @@ def set_token_exchange_trust(args):
         "schemas": ["urn:ietf:params:scim:schemas:oracle:idcs:IdentityPropagationTrust"]
     }
 
-    if str2bool(config['allowImpersonation']):
-        # json_string = r'[{"rule": "workflow co Token","ocid": "ocid1.user.oc1..aaaaaaaaiglhqgtpdqdiisskgn2idx47x2fctg6s7fhqzsbnxe6txlvof6ya"}]'
-        # impersonation_service_users = json.loads(json_string)
+    if (config['allowImpersonation']):
         rules = []
-        rule = {"rule": r"workflow co \"Token\"",
-                "ocid": "ocid1.user.oc1..aaaaaaaaiglhqgtpdqdiisskgn2idx47x2fctg6s7fhqzsbnxe6txlvof6ya"}
+        rule = {"rule":  r'workflow co gtrevorrow/oci-token-exchange-action@main',
+             "ocid": "ocid1.user.oc1..aaaaaaaaiglhqgtpdqdiisskgn2idx47x2fctg6s7fhqzsbnxe6txlvof6ya"}
         rules.append(rule)
+        # json_string = r'[{"rule": "workflow co \"Token\"","userId": "github"}]'
+        # impersonation_service_users = json.loads(json_string)
         payload["impersonationServiceUsers"] = rules
+        # clientClaimValues = ["repo:"]
+        # clientClaimName = ""
 
-    response = requests.request("POST", url, json=payload, headers=headers)
+
+    print("PUT " + payload.__str__())
+    response = requests.request("PUT", url, json=payload, headers=headers)
     print(response.text)
 
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Set Token Exchange Trust')
+    parser = argparse.ArgumentParser(description='Put Token Exchange Trust')
     parser.add_argument('--configFile', required=True, help='Config File')
     parser.add_argument('--token', required=True, help='Domain Access Token')
+    parser.add_argument('--id', required=True, help='ID of the trust configuration')
 
     args = parser.parse_args()
-    set_token_exchange_trust(args)
+    put_token_exchange_trust(args)

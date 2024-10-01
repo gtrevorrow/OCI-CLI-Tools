@@ -1,8 +1,10 @@
 import argparse
 import requests
+import toml
 
 def delete_token_exchange_trust(args):
-    url = args.url + "/" + args.id
+    config = toml.load(args.configFile)
+    url = config['url'] + "/" + args.id
     print(url)
     with open(args.token, 'r') as token_file:
         token = token_file.read().strip()
@@ -19,7 +21,7 @@ def delete_token_exchange_trust(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Delete Token Exchange Trust')
-    parser.add_argument('--url', required=True, help='URL')
+    parser.add_argument('--configFile', required=True, help='Config File')
     parser.add_argument('--token', required=True, help='Domain Access Token')
     parser.add_argument('--id', required=True, help='ID of the trust configuration')
 

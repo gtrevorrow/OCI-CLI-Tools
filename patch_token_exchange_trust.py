@@ -1,12 +1,16 @@
 import argparse
 import requests
 import json
+import toml
+
 
 def str2bool(v):
     return v.lower() in ('yes', 'true', 't', '1')
 
+
 def patch_token_exchange_trust(args):
-    url = args.url + "/" + args.id
+    config = toml.load(args.configFile)
+    url = config['url'] + "/" + args.id
     with open(args.token, 'r') as token_file:
         token = token_file.read().strip()
     headers = {
@@ -17,26 +21,26 @@ def patch_token_exchange_trust(args):
     operations = []
 
     if args.active is not None:
-        operations.append({"op": "replace", "path": "active", "value": args.active})
+        operations.append({"op": "replace", "path": "active", "value": config['active']})
     if args.allowImpersonation is not None:
-        operations.append({"op": "replace", "path": "allowImpersonation", "value": args.allowImpersonation})
+        operations.append({"op": "replace", "path": "allowImpersonation", "value": str2bool(config['allowImpersonation'])})
     if args.issuer is not None:
-        operations.append({"op": "replace", "path": "issuer", "value": args.issuer})
+        operations.append({"op": "replace", "path": "issuer", "value": config['issuer']})
     if args.name is not None:
-        operations.append({"op": "replace", "path": "name", "value": args.name})
+        operations.append({"op": "replace", "path": "name", "value": config['name']})
     if args.oauthClients is not None:
-        operations.append({"op": "replace", "path": "oauthClients", "value": [args.oauthClients]})
+        operations.append({"op": "replace", "path": "oauthClients", "value": [config['oauthClients']]})
     if args.publicKeyEndpoint is not None:
-        operations.append({"op": "replace", "path": "publicKeyEndpoint", "value": args.publicKeyEndpoint})
+        operations.append({"op": "replace", "path": "publicKeyEndpoint", "value": config['publicKeyEndpoint']})
     if args.subjectClaimName is not None:
-        operations.append({"op": "replace", "path": "subjectClaimName", "value": args.subjectClaimName})
+        operations.append({"op": "replace", "path": "subjectClaimName", "value": config['subjectClaimName']})
     if args.subjectMappingAttribute is not None:
-        operations.append({"op": "replace", "path": "subjectMappingAttribute", "value": args.subjectMappingAttribute})
+        operations.append({"op": "replace", "path": "subjectMappingAttribute", "value": config['subjectMappingAttribute']})
     if args.subjectType is not None:
-        operations.append({"op": "replace", "path": "subjectType", "value": args.subjectType})
+        operations.append({"op": "replace", "path": "subjectType", "value": config['subjectType']})
     if args.type is not None:
-        operations.append({"op": "replace", "path": "type", "value": args.type})
-    if args.impersonationServiceUsers is not None:
+        operations.append({"op": "replace", "path": "type", "value": config['type']})
+    if args.allowImpersonation:
         json_string = '[{"rule": "workflow co \\"Token\\"","userId": "github"}]'
         impersonation_service_users = json.loads(json_string)
         operations.append({"op": "replace", "path": "impersonationServiceUsers", "value": impersonation_service_users})
@@ -55,6 +59,7 @@ def patch_token_exchange_trust(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Set Token Exchange Trust')
     parser.add_argument('--url', required=True, help='URL')
+    parser.add_argument('--configFile', required=True, help='Config File')
     parser.add_argument('--token', required=True, help='Domain Access Token')
     parser.add_argument('--issuer', required=False, help='Issuer of the token being exchanged')
     parser.add_argument('--name', required=False, help='Name of trust configuration')
@@ -69,7 +74,6 @@ if __name__ == '__main__':
     parser.add_argument('--id', required=True, help='ID of the trust configuration')
     parser.add_argument('--allowImpersonation', required=False, type=str2bool, help='Allow Impersonation')
     parser.add_argument('--active', required=False, help='Active')
-    parser.add_argument('--impersonationServiceUsers', required=False, help='Impersonating Service User matching rules')
 
     args = parser.parse_args()
     patch_token_exchange_trust(args)

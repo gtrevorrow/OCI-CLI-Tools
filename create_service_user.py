@@ -4,6 +4,7 @@ import json
 
 
 def create_service_user(host, token, user_name):
+
     url = f"{host}/admin/v1/Users"
 
     headers = {
