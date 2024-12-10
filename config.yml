@@ -1,4 +1,5 @@
-"url"= "https://idcs-5d9e793985524e1c80b5d96f9a03acb7.identity.oraclecloud.com/admin/v1/IdentityPropagationTrusts"
+"url"= "https://idcs-<your domain UID>.identity.oraclecloud.com/admin/v1/IdentityPropagationTrusts"
+"token_url"= "https://idcs-<your domain UID>.identity.oraclecloud.com/oauth2/v1/token"
 "issuer"= "https://token.actions.githubusercontent.com"
 "name"= "gitHubOIDC"
 "oauthClients" = "7cd697ab037044159c0c10d74769c0bb"
@@ -8,4 +9,6 @@
 "type"= "JWT"
 "subjectMappingAttribute" = "userName"
 "allowImpersonation" = true
+"client_id" = "<client_id>"
+"client_secret" = "<client_secret>"
 "id" = "0072a176c26b4992a4351ebe0af17caa"

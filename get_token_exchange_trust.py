@@ -1,5 +1,7 @@
 import argparse
 import requests
+import toml
+
 
 def get_token_exchange_trust(args):
     config = toml.load(args.configFile)

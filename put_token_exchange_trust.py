@@ -36,7 +36,7 @@ def put_token_exchange_trust(args):
 
     if (config['allowImpersonation']):
         rules = []
-        rule = {"rule":  r'workflow co gtrevorrow/oci-token-exchange-action@main',
+        rule = {"rule":  r'workflow_ref eq gtrevorrow/oci-token-exchange-action/.github/workflows/config.yml@refs/heads/develop',
              "ocid": "ocid1.user.oc1..aaaaaaaaiglhqgtpdqdiisskgn2idx47x2fctg6s7fhqzsbnxe6txlvof6ya"}
         rules.append(rule)
         # json_string = r'[{"rule": "workflow co \"Token\"","userId": "github"}]'
