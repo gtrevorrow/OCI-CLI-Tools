@@ -1,6 +1,8 @@
 import base64
 import argparse
 import requests
+import toml
+import sys
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -26,13 +28,31 @@ def token_exchange_jwt_to_upst(token_exchange_url, client_cred, oci_public_key, 
     return response.json()
 
 
-def authenticate_via_oauth():
-    # Configuration
-    authZ_server_base_url = args.authZ_server_base_url
+def authenticate_via_oauth(args):
+    # Load configuration from file
+    try:
+        config = toml.load(args.configFile)
+    except FileNotFoundError:
+        print(f"Error: Configuration file '{args.configFile}' not found.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error loading configuration file '{args.configFile}': {e}")
+        sys.exit(1)
+
+    # Check for required keys
+    required_keys = ['authZ_server_base_url', 'client_id', 'client_secret', 'scope']
+    missing_keys = [key for key in required_keys if key not in config]
+    if missing_keys:
+        print(f"Error: Missing required keys in configuration file '{args.configFile}': {', '.join(missing_keys)}")
+        sys.exit(1)
+
+    # Configuration from config file
+    authZ_server_base_url = config['authZ_server_base_url']
+    client_id = config['client_id']
+    client_secret = config['client_secret']
+    scope = config['scope']
+
     device_auth_url = f"{authZ_server_base_url}/oauth2/v1/device"
-    client_id = args.client_id
-    client_secret = args.client_secret
-    scope = args.scope
 
     #  1: Get the device code and user verification URL
     response = requests.post(device_auth_url,
@@ -78,11 +98,11 @@ def authenticate_via_oauth():
     print(token_exchange_response)
     print(f"UPST: {token_exchange_response['token']}")
     upst = token_exchange_response['token']
-    # Write UPST to a file
+    # 6: Write UPST to a file
     with open('token', 'w') as f:
         f.write(upst)
 
-    # Write private key to a file
+    # 7: Write private key to a file
     with open('private_key.pem', 'wb') as f:
         f.write(key.private_bytes(
             encoding=serialization.Encoding.PEM,
@@ -93,9 +113,6 @@ def authenticate_via_oauth():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='OCI Session Authentication with OAuth Device Code grant')
-    parser.add_argument('--authZ_server_base_url', required=True, help='Authorization server base URL')
-    parser.add_argument('--client_id', required=True, help='Client ID')
-    parser.add_argument('--client_secret', required=True, help='Client Secret')
-    parser.add_argument('--scope', required=True, help='Scope')
+    parser.add_argument('--configFile', required=True, help='Config File')
     args = parser.parse_args()
-    authenticate_via_oauth()
+    authenticate_via_oauth(args)
