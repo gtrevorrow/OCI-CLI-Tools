@@ -26,7 +26,9 @@ Note:
 """
 
 import argparse
+import configparser
 import logging
+import os
 import shlex
 import signal
 import subprocess
@@ -34,7 +36,16 @@ import sys
 import threading
 import time
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, Dict, Any
+
+# TOML parsing: prefer stdlib tomllib (Python 3.11+), fallback to tomli if available
+try:
+    import tomllib as _tomllib
+except Exception:
+    try:
+        import tomli as _tomllib
+    except Exception:
+        _tomllib = None
 
 LOG = logging.getLogger("oci-session-wrapper")
 
@@ -53,7 +64,7 @@ def run_cmd_passthrough(cmd: str) -> int:
     """
     LOG.debug("Executing: %s", cmd)
     try:
-        rc = subprocess.run(shlex.split(cmd)).returncode
+        rc = subprocess.run(shlex.split(cmd)).returncode   # Note, this will not perform shell expansion
         if rc != 0:
             LOG.error("Command failed (rc=%s): %s", rc, cmd)
         return rc
@@ -107,7 +118,7 @@ def has_flag(tokens, name: str) -> bool:
 def augment_auth_cmd(cmd: str, profile_name: Optional[str], region: Optional[str], config_file: Optional[str]) -> str:
     """Append --profile-name, --region, --config-file for authenticate."""
     tokens = shlex.split(cmd)
-    if profile_name and not has_flag(tokens, "--profile-name"):
+    if profile_name and not has_flag(tokens, "--profile-name") and not has_flag(tokens, "--profile"):
         tokens += ["--profile-name", profile_name]
     if region and not has_flag(tokens, "--region"):
         tokens += ["--region", region]
@@ -124,7 +135,7 @@ def augment_auth_cmd(cmd: str, profile_name: Optional[str], region: Optional[str
 def augment_refresh_cmd(cmd: str, profile_name: Optional[str], region: Optional[str], config_file: Optional[str]) -> str:
     """Append --profile (mapped from profile_name), --region, --config-file for refresh."""
     tokens = shlex.split(cmd)
-    if profile_name and not has_flag(tokens, "--profile"):
+    if profile_name and not has_flag(tokens, "--profile") and not has_flag(tokens, "--profile-name"):
         tokens += ["--profile", profile_name]
     if region and not has_flag(tokens, "--region"):
         tokens += ["--region", region]
@@ -136,6 +147,100 @@ def augment_refresh_cmd(cmd: str, profile_name: Optional[str], region: Optional[
     except AttributeError:
         # Fallback for very old Python (shouldn't happen): naive join
         return " ".join(shlex.quote(t) for t in tokens)
+
+
+def is_ini_file(path: str) -> bool:
+    """Quick heuristic to decide if a file is INI-style (OCI config) vs TOML/YAML.
+    We look for a [section] on the first few lines.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for _ in range(20):
+                line = f.readline()
+                if not line:
+                    break
+                if line.strip().startswith("[") and line.strip().endswith("]"):
+                    return True
+    except Exception:
+        pass
+    return False
+
+
+def load_profile_from_toml(path: str, profile: str) -> Dict[str, Any]:
+    if _tomllib is None:
+        LOG.debug("TOML parser not available (tomllib/tomli); skipping TOML parsing for %s", path)
+        return {}
+    try:
+        with open(path, "rb") as f:
+            data = _tomllib.load(f)
+    except Exception as e:
+        LOG.debug("Failed to parse TOML %s: %s", path, e)
+        return {}
+
+    # TOML profiles could be tables with names matching profile
+    # Allow top-level key-value (no tables) for a DEFAULT profile
+    if profile in data and isinstance(data[profile], dict):
+        section = data[profile]
+        return {k.lower(): v for k, v in section.items()}
+    # If profile is DEFAULT or not present, and top-level keys exist, return them
+    if profile.upper() in ("DEFAULT", "OCI_DEFAULT") or profile == "DEFAULT":
+        # top-level keys
+        return {k.lower(): v for k, v in data.items()}
+    # try lowercase profile
+    if profile.lower() in data and isinstance(data[profile.lower()], dict):
+        return {k.lower(): v for k, v in data[profile.lower()].items()}
+    return {}
+
+
+def load_profile_from_ini(path: str, profile: str) -> Dict[str, Any]:
+    cp = configparser.ConfigParser()
+    try:
+        cp.read(path)
+    except Exception as e:
+        LOG.debug("Failed to read INI %s: %s", path, e)
+        return {}
+    if profile in cp:
+        return {k.lower(): v for k, v in cp[profile].items()}
+    # try DEFAULT
+    if "DEFAULT" in cp:
+        return {k.lower(): v for k, v in cp["DEFAULT"].items()}
+    return {}
+
+
+def find_and_load_profile(config_file_arg: Optional[str], profile: Optional[str]) -> Dict[str, Any]:
+    """Locate a config file (if provided or in common locations) and return profile dict.
+
+    Search order:
+      1. If config_file_arg is provided, try to parse it (TOML or INI).
+      2. ./config.toml
+      3. ~/.oci/config (INI)
+
+    Returns a dict of lowercase keys for the found profile (empty if nothing found).
+    """
+    candidates = []
+    if config_file_arg:
+        candidates.append(config_file_arg)
+    repo_toml = os.path.join(os.getcwd(), "config.toml")
+    if os.path.isfile(repo_toml):
+        candidates.append(repo_toml)
+    home_ini = os.path.expanduser("~/.oci/config")
+    if os.path.isfile(home_ini):
+        candidates.append(home_ini)
+
+    for p in candidates:
+        if not os.path.isfile(p):
+            continue
+        if is_ini_file(p):
+            cfg = load_profile_from_ini(p, profile or "DEFAULT")
+            if cfg:
+                LOG.debug("Loaded profile %s from INI %s", profile, p)
+                return cfg
+        else:
+            cfg = load_profile_from_toml(p, profile or "DEFAULT")
+            if cfg:
+                LOG.debug("Loaded profile %s from TOML %s", profile, p)
+                return cfg
+    return {}
 
 
 def refresher_loop(interval_seconds: int, refresh_cmd: str, stop_event: threading.Event) -> None:
@@ -179,10 +284,18 @@ def main() -> None:
         default="oci session refresh",
         help="Command to refresh the session (default: 'oci session refresh').",
     )
+    # accept both --profile and --profile-name (OCI CLI uses --profile for many commands, authenticate uses --profile-name)
     p.add_argument(
         "--profile-name",
+        dest="profile_name",
         default=None,
         help="Profile name to create/update in the OCI config (appended to auth as --profile-name, to refresh as --profile).",
+    )
+    p.add_argument(
+        "--profile",
+        dest="profile",
+        default=None,
+        help="Alias for --profile-name; accepts the OCI CLI style --profile option to select a profile section from a config file.",
     )
     p.add_argument(
         "--region",
@@ -192,7 +305,7 @@ def main() -> None:
     p.add_argument(
         "--config-file",
         default=None,
-        help="Path to non-default OCI config file. Appended as --config-file if not already present.",
+        help="Path to non-default OCI config file. Appended as --config-file if not already present (only if it's an INI-style file).",
     )
     p.add_argument(
         "--refresh-interval",
@@ -212,15 +325,34 @@ def main() -> None:
 
     setup_logging(args.log_level)
 
+    # resolve profile name preference: CLI --profile (OCI style) overrides --profile-name
+    profile_name = args.profile if args.profile is not None else args.profile_name
+
     try:
         interval_seconds = parse_refresh_interval_to_seconds(args.refresh_interval)
     except Exception as e:
         LOG.error(str(e))
         sys.exit(2)
 
+    # attempt to load profile settings from config files (TOML or INI) for defaults
+    profile_cfg = find_and_load_profile(args.config_file, profile_name or "DEFAULT")
+
+    # determine effective region: use only CLI value. Do NOT read `region` from config.toml or any profile file;
+    # leave region resolution to the wrapped OCI CLI/SDK (they will use ~/.oci/config or other defaults if not supplied).
+    effective_region = args.region
+
+    # determine whether to pass --config-file through to OCI CLI: only pass if args.config_file was provided and is INI
+    config_file_to_pass = None
+    if args.config_file:
+        if is_ini_file(args.config_file):
+            config_file_to_pass = args.config_file
+        else:
+            # If user explicitly provided a non-INI config file (e.g., TOML), we won't pass it to OCI CLI (it won't understand TOML)
+            LOG.debug("Provided --config-file %s does not look like an INI OCI config; not passing it through to OCI CLI.", args.config_file)
+
     # Build effective commands by appending optional profile-name/region/config, mapping auth/refresh appropriately
-    effective_auth_cmd = augment_auth_cmd(args.auth_cmd, args.profile_name, args.region, args.config_file)
-    effective_refresh_cmd = augment_refresh_cmd(args.refresh_cmd, args.profile_name, args.region, args.config_file)
+    effective_auth_cmd = augment_auth_cmd(args.auth_cmd, profile_name, effective_region, config_file_to_pass)
+    effective_refresh_cmd = augment_refresh_cmd(args.refresh_cmd, profile_name, effective_region, config_file_to_pass)
 
     # Initial authentication (once)
     LOG.info("Initial authentication with: %s", effective_auth_cmd)
