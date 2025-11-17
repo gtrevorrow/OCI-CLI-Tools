@@ -15,26 +15,27 @@ Wraps the OCI CLI to transparently obtain and refresh an OCI session token (UPST
 Before installing the wrapper, ensure you have:
 
 ### OCI Workload Identity Federation Configuration
-- **Trust relationship configured**: OCI Workload Identity Federation must be set up to establish trust between your OAuth/OIDC authorization server (e.g., Okta) and an OCI IAM domain.
+- **Trust relationship configured**: OCI Workload Identity Federation must be set up to establish trust between your OIDC Provider (e.g., Okta) and an OCI IAM domain.
 - **User exists in the domain**: Your user account must exist in the OCI IAM domain that trusts the authorization server.
-- **OAuth client registered**: An OAuth 2.0 client (confidential client with client_id and client_secret) must be registered in your authorization server with:
-  - Authorization Code grant type enabled
-  - Refresh Token grant type enabled (offline_access scope)
-  - Redirect URI `http://127.0.0.1:8181/callback` (or your chosen port) registered
-
 See [OCI Workload Identity Federation documentation](https://docs.oracle.com/en-us/iaas/Content/Identity/federation/workload-identity-federation.htm) for detailed setup steps.
 
+### OIDC Client Registrations:
+- **OAuth client registered**: An OAuth 2.0 client  must be registered in your OIDC Provider with:
+    - Authorization Code grant type enabled
+    - Refresh Token grant type enabled (offline_access scope)
+    - Redirect URI `http://127.0.0.1:8181/callback` (or your chosen port) registered
+  
 ### Runtime Requirements
 - Python 3.9+ (Options 1 and 2). Option 3 creates its own virtualenv.
 - OCI CLI installed and on PATH (`oci` command available)
 
-## Get the code (Bitbucket)
-Choose one of the following ways to fetch the sources from the Bitbucket repo:
+## Get the code (GitHub)
+Choose one of the following ways to fetch the sources from the GitHub repo:
 
 - Git clone (recommended; gets the branch):
 ```bash
-git clone https://bitbucket.org/gordontrevorrow/token-exchange.git
-cd token-exchange
+git clone https://github.com/gtrevorrow/OCI-CLI-Tools.git
+cd OCI-CLI-Tools
 # checkout the feature branch
 git checkout feature/woci-session-manager
 ```
@@ -42,19 +43,20 @@ git checkout feature/woci-session-manager
 - Download the branch as a ZIP (no git required):
 ```bash
 curl -L -o woci.zip \
-  "https://bitbucket.org/gordontrevorrow/token-exchange/get/feature/woci-session-manager.zip"
+  "https://codeload.github.com/gtrevorrow/OCI-CLI-Tools/zip/refs/heads/feature/woci-session-manager"
 unzip woci.zip
-cd gordontrevorrow-token-exchange-*
+cd OCI-CLI-Tools-*
 ```
 
 - Download a specific commit (locked snapshot):
 ```bash
-# commit: 08ed2b830551ba34cfdff700f712934e2293dbda
+# commit: 08ed2b830551ba34cfdff700f712934e2293dbda (frozen snapshot)
 curl -L -o woci-commit.zip \
-  "https://bitbucket.org/gordontrevorrow/token-exchange/get/08ed2b830551ba34cfdff700f712934e2293dbda.zip"
-unzip woci-commit.zip
-cd gordontrevorrow-token-exchange-*
+  "https://codeload.github.com/gtrevorrow/OCI-CLI-Tools/zip/08ed2b830551ba34cfdff700f712934e2293dbda"
+ unzip woci-commit.zip
+ cd OCI-CLI-Tools-*
 ```
+This URL ends with the commit SHA, so you always download that exact revision regardless of future branch changes.
 
 Expected files (minimal checklist):
 - `oci_upst_session_manager.py` (main tool)
@@ -68,34 +70,10 @@ Expected files (minimal checklist):
 ## Install
 
 Prerequisites:
-- Python 3.9+ (Options 1 and 2). Option 3 creates its own virtualenv.
+- Python 3.9+ (Options 2 and 3). Option 1 creates its own virtualenv.
 - OCI CLI installed (`oci` on PATH)
 
-### Option 1: Symlink directly to the script (simple, uses system Python)
-Install Python dependencies into the interpreter that will run the script:
-```bash
-python3 -m pip install --user -r requirements.txt
-```
-Then create a convenient shim:
-```bash
-chmod +x oci_upst_session_manager.py
-ln -sf "$(pwd)/oci_upst_session_manager.py" /usr/local/bin/woci
-which woci
-woci --help
-```
-
-### Option 2: Manual virtualenv (you manage the venv)
-```bash
-python3 -m venv .woci-venv
-source .woci-venv/bin/activate
-pip install -r requirements.txt
-python oci_upst_session_manager.py --help
-# Optional global shim
-ln -sf "$(pwd)/oci_upst_session_manager.py" /usr/local/bin/woci
-```
-Deactivate later with `deactivate`.
-
-### Option 3: Self-contained installer script (recommended)
+### Option 1: Self-contained installer script (recommended)
 Creates an isolated virtualenv under `~/.local/share/oci-upst-manager` and a launcher in `~/.local/bin`.
 ```bash
 chmod +x install.sh
@@ -113,32 +91,32 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bash_profile
 source ~/.bash_profile
 ```
 Notes:
-- Option 3 installs dependencies automatically from `requirements.txt` (no manual `pip install` needed).
+- Option 1 installs dependencies automatically from `requirements.txt` (no manual `pip install` needed).
 - The launcher name is `oci-upst-session-manager`; adding the `woci` alias keeps examples below consistent.
 
-### Option 4: pipx (isolated venv with global CLI)
-Install as an isolated app without managing virtualenvs yourself:
+### Option 2: Symlink directly to the script (simple, uses system Python)
+Install Python dependencies into the interpreter that will run the script:
 ```bash
-# install pipx if needed (macOS/Homebrew example)
-brew install pipx || python3 -m pip install --user pipx
-python3 -m pipx ensurepath
-
-# from the repository root
-pipx install . --python python3
+python3 -m pip install --user -r requirements.txt
+```
+Then create a convenient shim:
+```bash
+chmod +x oci_upst_session_manager.py
+ln -sf "$(pwd)/oci_upst_session_manager.py" /usr/local/bin/woci
+which woci
 woci --help
 ```
-Upgrade or reinstall from local sources:
+
+### Option 3: Manual virtualenv (you manage the venv)
 ```bash
-pipx uninstall woci-session-manager || true
-pipx install . --python python3
+python3 -m venv .woci-venv
+source .woci-venv/bin/activate
+pip install -r requirements.txt
+python oci_upst_session_manager.py --help
+# Optional global shim
+ln -sf "$(pwd)/oci_upst_session_manager.py" /usr/local/bin/woci
 ```
-Uninstall:
-```bash
-pipx uninstall woci-session-manager
-```
-Notes:
-- This uses the console script entrypoint `woci` (also `woci-session-manager`) defined in `pyproject.toml`.
-- Dependencies are pinned by `requirements.txt` equivalents in `pyproject.toml` (requests, cryptography).
+Deactivate later with `deactivate`.
 
 ## Configuration Files
 
@@ -154,8 +132,7 @@ Auto-discovery rules:
 3. If not found there, looks for `~/.oci/woci_manager.ini`.
 4. Explicit `--manager-config` overrides auto-discovery entirely.
 
-The manager INI supports a real `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `log_level`).
-CLI flags always override values from the selected section; `[COMMON]` fills in any missing keys for that section.
+The manager INI supports a  `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `log_level`).
 If no profile section is selected or provided, a section literally named `[DEFAULT]` is used as the effective profile name (mirroring OCI behavior).
 
 Section name chosen using precedence documented in Profile Resolution Semantics. CLI flags override section values; manager config never overrides an explicitly supplied CLI flag.

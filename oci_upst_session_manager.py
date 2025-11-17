@@ -483,6 +483,8 @@ def ensure_session(args, rt_passphrase: Optional[str], rt_iterations: int) -> No
             tok = resp.json()
             access_token = tok["access_token"]
             new_rt = tok.get("refresh_token", refresh_token)
+            if new_rt != refresh_token:
+                LOG.info("OIDC provider rotated the refresh token; storing the new value.")
             perform_exchange_and_save(args, access_token, new_rt, rt_passphrase, rt_iterations)
             LOG.info("Session refreshed from refresh_token.")
             return
