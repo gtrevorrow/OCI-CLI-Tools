@@ -10,15 +10,20 @@ Wraps the OCI CLI to transparently obtain and refresh a security token (UPST) vi
 ## Install
 
 Prerequisites:
-- Python 3.9+
+- Python 3.9+ (Options 1 and 2). Option 3 creates its own virtualenv.
 - OCI CLI installed (`oci` on PATH)
-- Dependencies: `pip install -r requirements.txt`
 
 ### Option 1: Symlink directly to the script (simple, uses system Python)
+Install Python dependencies into the interpreter that will run the script:
+```bash
+python3 -m pip install --user -r requirements.txt
+```
+Then create a convenient shim:
 ```bash
 chmod +x oci_upst_session_manager.py
 ln -sf "$(pwd)/oci_upst_session_manager.py" /usr/local/bin/woci
 which woci
+woci --help
 ```
 
 ### Option 2: Manual virtualenv (you manage the venv)
@@ -50,7 +55,7 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bash_profile
 source ~/.bash_profile
 ```
 Notes:
-- The installer creates a venv and installs `requests` and `cryptography` inside it.
+- Option 3 installs dependencies automatically from `requirements.txt` (no manual `pip install` needed).
 - The launcher name is `oci-upst-session-manager`; adding the `woci` alias keeps examples below consistent.
 
 ## Configuration Files
