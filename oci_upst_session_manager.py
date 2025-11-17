@@ -680,6 +680,7 @@ def main():
             auto_manager_path = candidate
     manager_path = args.manager_config or auto_manager_path
     cp = None
+    common_data = {}
     if manager_path:
         cp = configparser.ConfigParser()
         try:
@@ -688,20 +689,33 @@ def main():
                 print(f"Failed to read manager-config file: {manager_path}", file=sys.stderr)
                 sys.exit(2)
             if read_files:
-                # Section resolution order remains the same; note that configparser provides [DEFAULT] inherently
+                # Collect [COMMON] values (shared defaults for all sections)
+                if cp.has_section('COMMON'):
+                    common_data = {k: v for k, v in cp['COMMON'].items()}
+                # Section resolution order (mirror OCI default behavior when no profile):
+                # 1. Explicit --manager-config-section
+                # 2. Section named exactly as --profile-name
+                # 3. Section named exactly as passthrough --profile
+                # 4. Section named 'DEFAULT' (actual profile name)
+                # 5. First real section
                 if args.manager_config_section and args.manager_config_section in cp:
                     selected_section_name = args.manager_config_section
                 elif args.profile_name and args.profile_name in cp:
                     selected_section_name = args.profile_name
                 elif (not args.profile_name and cli_profile and cli_profile in cp):
                     selected_section_name = cli_profile
-                # If nothing selected, we will rely on cp.defaults() only (actual [DEFAULT] section in INI)
-                if selected_section_name:
-                    # Use section items which include inherited DEFAULT values
-                    ini_section_data = {k: v for k, v in cp[selected_section_name].items()}
+                elif cp.has_section('DEFAULT'):
+                    selected_section_name = 'DEFAULT'
                 else:
-                    # Use only DEFAULT values
-                    ini_section_data = {k: v for k, v in cp.defaults().items()}
+                    real_sections = [s for s in cp.sections() if s != 'COMMON']
+                    if real_sections:
+                        selected_section_name = real_sections[0]
+                # Merge: [COMMON] base + selected section overrides
+                if selected_section_name and cp.has_section(selected_section_name):
+                    ini_section_data = dict(common_data)
+                    ini_section_data.update({k: v for k, v in cp[selected_section_name].items()})
+                else:
+                    ini_section_data = dict(common_data)
         except Exception as e:
             if args.manager_config:
                 print(f"Error reading manager-config: {e}", file=sys.stderr)
@@ -739,11 +753,11 @@ def main():
     if not args.profile_name:
         if cli_profile:
             args.profile_name = cli_profile
-        elif selected_section_name and selected_section_name != 'DEFAULT':
+        elif selected_section_name:
             args.profile_name = selected_section_name
 
     if not args.profile_name:
-        print("Could not determine profile name: supply --profile-name, --profile, or ensure manager config has a named section.", file=sys.stderr)
+        print("Could not determine profile name: supply --profile-name, --profile, or ensure manager config has a named section (e.g., DEFAULT).", file=sys.stderr)
         sys.exit(2)
 
     # Encryption flags
@@ -770,7 +784,7 @@ def main():
 
     setup_logging(args.log_level or "INFO")
 
-    LOG.info("Resolved config: profile=%s authz_url=%s token_url=%s exchange_url=%s scope='%s' redirect_port=%s", args.profile_name, args.authz_base_url, args.token_url, args.token_exchange_url or args.token_url, args.scope, args.redirect_port)
+    LOG.info("Resolved config: profile=%s authz_url=%s token_url=%s exchange_url=%s scope='%s' redirect_port=%s section=%s", args.profile_name, args.authz_base_url, args.token_url, args.token_exchange_url or args.token_url, args.scope, args.redirect_port, selected_section_name)
 
     rt_passphrase = get_rt_passphrase(args)
     rt_iters = REFRESH_TOKEN_KDF_ITERATIONS

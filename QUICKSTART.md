@@ -155,21 +155,25 @@ Auto-discovery rules:
 3. If not found there, looks for `~/.oci/woci_manager.ini`.
 4. Explicit `--manager-config` overrides auto-discovery entirely.
 
-The manager INI supports a real `[DEFAULT]` section. Values defined under `[DEFAULT]` are inherited by all named sections.
-CLI flags always override values from the selected section or `[DEFAULT]`. The script has no hard-coded defaults for
-`redirect_port`, `refresh_interval`, or `log_level`—provide them via CLI or manager INI (e.g., `[DEFAULT]`).
+The manager INI supports a real `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `refresh_interval`, `log_level`).
+CLI flags always override values from the selected section; `[COMMON]` fills in any missing keys for that section.
+If no profile section is selected or provided, a section literally named `[DEFAULT]` is used as the effective profile name (mirroring OCI behavior).
 
 Section name chosen using precedence documented in Profile Resolution Semantics. CLI flags override section values; manager config never overrides an explicitly supplied CLI flag.
 
 Sample `woci_manager.ini`:
 ```ini
+[COMMON]
+redirect_port = 8181
+refresh_interval = 0
+log_level = INFO
+
 [myprofile]
 authz_base_url = https://idcs-tenant.identity.oraclecloud.com/oauth2/v1/authorize
 token_url = https://idcs-tenant.identity.oraclecloud.com/oauth2/v1/token
 client_id = YOUR_CLIENT_ID
 client_secret = YOUR_CLIENT_SECRET
 scope = openid offline_access
-refresh_interval = 0
 ```
 
 Token exchange endpoint guidance:
@@ -181,7 +185,7 @@ Effective profile name (used for OCI profile and session artifact paths) is chos
 1. `--profile-name` (wrapper flag)
 2. Passthrough `--profile` (OCI CLI flag in the remaining args)
 3. Selected manager config section name (see below)
-   - Section resolution order: explicit `--manager-config-section`, section matching `--profile-name`, section matching passthrough `--profile`, DEFAULT pseudo-section (values only), first real section.
+   - Section resolution order: explicit `--manager-config-section`, section matching `--profile-name`, section matching passthrough `--profile`, section named `DEFAULT` (mirrors OCI), otherwise first real section.
 4. Failure: exit with error if no profile determined.
 
 Artifacts stored under: `~/.oci/sessions/<profile>/`:
@@ -354,20 +358,20 @@ Pass-through behavior:
 - If not present, the wrapper adds `--auth security_token` and `--profile <resolved-profile>` to the forwarded `oci` command.
 
 Precedence (values):
-- CLI flag value > value from manager INI (selected section) > built-in default.
+- CLI flag value > value from manager INI section (with `[COMMON]` merged) > none (no script hard-coded defaults except `config_file`).
 - Region: wrapper does not read `region` from the manager INI. Supply `--region` on the CLI if you want the wrapper to seed/update the OCI profile; otherwise OCI CLI resolves region from `~/.oci/config`.
 
 Manager INI selection (when multiple sections exist):
 1) Explicit `--manager-config-section` if present
 2) Section named exactly as `--profile-name` (if provided and exists)
 3) Section named as passthrough `--profile` (if `--profile-name` not provided and exists)
-4) `[DEFAULT]` values are applied to any section but do not provide a section name
+4) Section named `DEFAULT` (used as the effective profile when none is provided)
 5) First real section
 
 Profile resolution (effective profile that governs artifacts under `~/.oci/sessions/<profile>` and OCI profile updates):
 1) `--profile-name` (wrapper flag)
 2) Passthrough `--profile` (from the forwarded OCI args)
-3) Selected manager INI section name (not `DEFAULT`)
+3) Selected manager INI section name (including `DEFAULT` if chosen)
 
 If no effective profile can be determined, the wrapper exits with an error.
 
