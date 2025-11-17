@@ -59,11 +59,11 @@
     <text x="305" y="310" font-size="12" fill="white" text-anchor="start">open auth URL in browser</text>
 
     <!-- 5. Browser displays login -->
-    <line x1="490" y1="360" x2="100" y2="360" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
-    <text x="480" y="350" font-size="12" fill="white" text-anchor="end">display login page</text>
+    <line x1="685" y1="360" x2="490" y2="360" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
+    <text x="675" y="350" font-size="12" fill="white" text-anchor="end">display login page</text>
 
     <!-- 6. User logs in -->
-    <line x1="100" y1="400" x2="490" y2="400" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
+    <line x1="100" y1="400" x2="685" y2="400" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
     <text x="110" y="390" font-size="12" fill="white" text-anchor="start">user authenticates</text>
 
     <!-- 7. Browser redirects to OAuth server -->
@@ -76,11 +76,11 @@
 
     <!-- 9. Exchange code for JWT + refresh_token -->
     <line x1="295" y1="520" x2="685" y2="520" stroke="#b33" stroke-width="2" marker-end="url(#arrow-red)"/>
-    <text x="305" y="510" font-size="12" fill="white" text-anchor="start">exchange code for JWT + refresh_token</text>
+    <text x="305" y="510" font-size="12" fill="white" text-anchor="start">exchange code for access_token (JWT) + refresh_token (id_token also returned)</text>
 
     <!-- 10. Exchange JWT for UPST -->
     <line x1="295" y1="560" x2="880" y2="560" stroke="#b33" stroke-width="2" marker-end="url(#arrow-red)"/>
-    <text x="305" y="550" font-size="12" fill="white" text-anchor="start">RFC8693 exchange JWT → UPST</text>
+    <text x="305" y="550" font-size="12" fill="white" text-anchor="start">RFC8693 exchange access_token (JWT) → UPST</text>
 
     <!-- 11. Save tokens and keys -->
     <line x1="295" y1="600" x2="295" y2="640" stroke="#27a27a" stroke-width="2"/>
@@ -109,7 +109,7 @@
 
   <!-- Notes -->
   <g id="notes">
-    <rect x="1300" y="100" width="281" height="150" rx="10" fill="#333" stroke="#333"/>
+    <rect x="1300" y="100" width="281" height="165" rx="10" fill="#333" stroke="#333"/>
     <text x="1310" y="120" font-size="12" fill="white" font-weight="600">Notes:</text>
     <text x="1310" y="140" font-size="11" fill="white">• Auth flow uses Authorization Code + PKCE</text>
     <text x="1310" y="155" font-size="11" fill="white">• Token exchange follows RFC8693 profile</text>
@@ -117,6 +117,7 @@
     <text x="1310" y="185" font-size="11" fill="white">• Session artifacts stored in ~/.oci/sessions/</text>
     <text x="1310" y="200" font-size="11" fill="white">• OCI config updated with key_file, security_token_file</text>
     <text x="1310" y="215" font-size="11" fill="white">• Refresh token optionally encrypted (AES-GCM)</text>
-    <text x="1310" y="230" font-size="11" fill="white">• OIDC providers may rotate refresh tokens (e.g., Okta)</text>
+    <text x="1310" y="230" font-size="11" fill="white">• Okta: requires offline_access scope for refresh token</text>
+    <text x="1310" y="245" font-size="11" fill="white">• Okta rotates refresh tokens (handled automatically)</text>
   </g>
 </svg>
