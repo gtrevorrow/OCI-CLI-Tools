@@ -13,12 +13,33 @@ Prerequisites:
 - OCI CLI installed (`oci` on PATH)
 - Dependencies: `pip install -r requirements.txt`
 
-Add a convenient executable name (symlink):
+### Option 1: Symlink directly to the script (simple, uses system Python)
 ```bash
 chmod +x oci_upst_session_manager.py
 ln -sf "$(pwd)/oci_upst_session_manager.py" /usr/local/bin/woci
 which woci
 ```
+
+### Option 3: Self-contained installer script (recommended)
+Creates an isolated virtualenv under `~/.local/share/oci-upst-manager` and a launcher in `~/.local/bin`.
+```bash
+chmod +x install.sh
+./install.sh
+~/.local/bin/oci-upst-session-manager --help
+```
+Optional convenience alias "woci":
+```bash
+ln -sf "$HOME/.local/bin/oci-upst-session-manager" "$HOME/.local/bin/woci"
+which woci
+```
+If `~/.local/bin` is not on your PATH (bash):
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bash_profile
+source ~/.bash_profile
+```
+Notes:
+- The installer creates a venv and installs `requests` and `cryptography` inside it.
+- The launcher name is `oci-upst-session-manager`; adding the `woci` alias keeps examples below consistent.
 
 ## Configuration Files
 
@@ -155,4 +176,3 @@ Edit constants (e.g., `REFRESH_TOKEN_KDF_ITERATIONS`) directly in the script if 
 
 ---
 For feature requests (OIDC discovery, configurable callback path, non-browser device flow fallback), extend the script where noted in comments.
-
