@@ -163,10 +163,15 @@ First call triggers interactive login; subsequent calls refresh silently.
 - Passphrase derivation uses PBKDF2-HMAC-SHA256 (200k iterations) for a balanced cost.
 
 ## Exit Codes
-- 0 success after passthrough command
-- 1 runtime/refresh/exchange failure
-- 2 argument / configuration error
-- 127 OCI CLI not found
+- 0  Wrapper succeeded and underlying OCI command exited 0
+- 2  Argument or configuration error detected by wrapper (missing required values, invalid URLs, unreadable manager config, profile resolution failure)
+- 127 'oci' executable not found on PATH
+- 1  Internal runtime failure (authorization flow, token exchange, file write) OR unexpected wrapper exception
+- Other non-zero codes: If the OCI CLI runs and returns a non-zero exit code (e.g. 3, 4, etc.), that code is passed through unchanged.
+
+Notes:
+- Background refresh thread (if enabled) does not alter the main exit code; failures there are logged.
+- Ctrl-C / SIGINT during background operation results in a clean shutdown with the passthrough OCI command's original exit code (often 0 if already finished).
 
 ## Unattended / Headless
 Use an initial interactive run to create artifacts, then rely on refresh token afterward. For truly headless environments ensure you can manually visit the Auth URL from a workstation and copy the redirected code if necessary.
