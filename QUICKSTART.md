@@ -20,6 +20,17 @@ ln -sf "$(pwd)/oci_upst_session_manager.py" /usr/local/bin/woci
 which woci
 ```
 
+### Option 2: Manual virtualenv (you manage the venv)
+```bash
+python3 -m venv .woci-venv
+source .woci-venv/bin/activate
+pip install -r requirements.txt
+python oci_upst_session_manager.py --help
+# Optional global shim
+ln -sf "$(pwd)/oci_upst_session_manager.py" /usr/local/bin/woci
+```
+Deactivate later with `deactivate`.
+
 ### Option 3: Self-contained installer script (recommended)
 Creates an isolated virtualenv under `~/.local/share/oci-upst-manager` and a launcher in `~/.local/bin`.
 ```bash
@@ -47,6 +58,14 @@ OCI CLI config (standard): `~/.oci/config`
 WOCI manager config (auto-discovered): `~/.oci/woci_manager.ini` OR same directory as any `--config-file` you pass.
 Default auto-discovery filename: `woci_manager.ini`.
 
+Auto-discovery rules:
+1. Wrapper reads `--config-file` (or defaults to `~/.oci/config`).
+2. Looks for `woci_manager.ini` in the same directory.
+3. If not found there, looks for `~/.oci/woci_manager.ini`.
+4. Explicit `--manager-config` overrides auto-discovery entirely.
+
+Section name chosen using precedence documented in Profile Resolution Semantics. CLI flags override section values; manager config never overrides an explicitly supplied CLI flag.
+
 Sample `woci_manager.ini`:
 ```ini
 [myprofile]
@@ -58,7 +77,9 @@ scope = openid offline_access
 refresh_interval = 0
 ```
 
-You can define multiple sections. CLI flags always override values from the selected section.
+Token exchange endpoint guidance:
+- If the same token endpoint supports RFC 8693 token exchange, omit `token_exchange_url`.
+- If OCI IAM uses a distinct host/endpoint for exchange, set `token_exchange_url` explicitly.
 
 ## Profile Resolution Semantics
 Effective profile name (used for OCI profile and session artifact paths) is chosen by precedence:
@@ -78,15 +99,29 @@ OCI config is updated (created if absent) with:
 - `security_token_file`
 - `region` (if provided)
 
+Additional notes:
+- DEFAULT pseudo-section contributes values only; it is not used as a profile name.
+- The effective profile determines the folders: `~/.oci/sessions/<profile>/`.
+
+## Redirect URI & Port
+Default redirect URI: `http://127.0.0.1:8181/callback`
+Change port with `--redirect-port <port>` (must match a registered redirect URI in your OAuth client).
+Make sure you register the exact URI (host, port, path) with your authorization server.
+
 ## Required Runtime Values
 Must be provided via CLI or manager config: `authz_base_url`, `token_url`, `client_id`, `client_secret`, `scope`.
 `client_secret` is mandatory for OCI IAM token exchange.
+- `scope` must include `offline_access` (or equivalent for your provider) to obtain a refresh token.
 
 ## Encryption (Optional)
 Provide a passphrase to encrypt the refresh token file:
 - `--refresh-token-passphrase-env VAR_NAME` (VAR_NAME must be set in environment)
 - `--refresh-token-passphrase-prompt` (interactive prompt)
 Algorithm: AES-GCM + PBKDF2 (200k iterations) + random salt/nonce.
+
+Behavior:
+- If the stored refresh token file is encrypted and you invoke without a passphrase source, the wrapper errors out and does not proceed.
+- Passphrase precedence: prompt (`--refresh-token-passphrase-prompt`) > env (`--refresh-token-passphrase-env`).
 
 ## First Run Flow
 1. Launch `woci` with an OCI command.
@@ -131,6 +166,11 @@ export WOCI_RT_PASSPHRASE="StrongPassphrase"
 woci --refresh-token-passphrase-env WOCI_RT_PASSPHRASE ... <OCI COMMAND>
 ```
 
+Add token exchange URL if needed:
+```bash
+woci --token-exchange-url https://login.us-ashburn-1.oraclecloud.com/oauth2/v1/token ...
+```
+
 ## Kubeconfig Exec Integration
 Example user exec block:
 ```yaml
@@ -156,11 +196,18 @@ First call triggers interactive login; subsequent calls refresh silently.
 - "Could not determine profile name": provide `--profile-name` or `--profile` or add a named section.
 - Token not refreshing: check presence/permissions of `~/.oci/sessions/<profile>/refresh_token`.
 - Encrypted refresh token but no passphrase supplied: provide env var or prompt flag.
+- Encrypted refresh token error: supply passphrase again (env or prompt) to unlock.
+- Authorization errors: verify redirect URI registration & exact client_id/client_secret.
+- Browser fails to open: copy the logged `Auth URL:` manually or run `open <URL>` on macOS.
 
 ## Security Notes
 - Refresh token is sensitive; prefer encryption at rest.
 - Session token lifetime capped at 60 minutes; refresh loop clamps interval.
 - Passphrase derivation uses PBKDF2-HMAC-SHA256 (200k iterations) for a balanced cost.
+Additional considerations:
+- Avoid committing `woci_manager.ini` if it contains a `client_secret`.
+- Tokens are never logged; only the authorization URL is printed.
+- Refresh token rotation: Some providers rotate refresh tokens; script saves new one if returned.
 
 ## Exit Codes
 - 0  Wrapper succeeded and underlying OCI command exited 0
@@ -175,6 +222,9 @@ Notes:
 
 ## Unattended / Headless
 Use an initial interactive run to create artifacts, then rely on refresh token afterward. For truly headless environments ensure you can manually visit the Auth URL from a workstation and copy the redirected code if necessary.
+Add remote workflow:
+- Run once interactively (or forward the auth URL to an operator) to capture refresh token.
+- Subsequent cron/container invocations reuse and refresh silently.
 
 ## Updating
 Edit constants (e.g., `REFRESH_TOKEN_KDF_ITERATIONS`) directly in the script if you need to tune; no CLI flag provided to reduce complexity.
