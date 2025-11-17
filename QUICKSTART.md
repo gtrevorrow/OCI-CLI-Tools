@@ -4,8 +4,10 @@
 Wraps the OCI CLI to transparently obtain and refresh a security token (UPST) via:
 1. OAuth 2.0 Authorization Code + PKCE (interactive, first use)
 2. Refresh Token grant (silent renew of access token)
-3. RFC 8693 Token Exchange (access token -> OCI UPST)
+3. OCI Workload Identity Federation token exchange (RFC 8693 profile with OCI-specific extensions)
 4. Optional background refresh loop (disabled by default: interval=0)
+
+Note: The token exchange follows RFC 8693 semantics with OCI extensions (e.g., requested_token_type=urn:oci:token-type:oci-upst, a required public_key parameter, and a response field named token).
 
 Note on installation: prerequisites differ by option. Option 1 uses your system Python and requires installing dependencies with pip. Option 2 installs dependencies inside a virtualenv you create. Option 3 runs an installer that creates its own virtualenv and installs dependencies automatically. See Install for details.
 
