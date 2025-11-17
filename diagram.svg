@@ -13,7 +13,7 @@
   </defs>
 
   <!-- Title -->
-  <text x="50" y="30" font-size="18" fill="white" font-weight="600">Sequence Diagram: woci (oci_upst_session_manager.py) Workflow</text>
+  <text x="50" y="30" font-size="18" fill="white" font-weight="600">Sequence Diagram: woci Initial Authentication (No Valid Session/Refresh Token)</text>
 
   <!-- Participants -->
   <g id="participants">
@@ -51,7 +51,8 @@
 
     <!-- 3. Check for existing session -->
     <line x1="295" y1="240" x2="295" y2="280" stroke="#27a27a" stroke-width="2"/>
-    <text x="305" y="230" font-size="12" fill="white" text-anchor="start">check for existing UPST token</text>
+    <text x="305" y="230" font-size="12" fill="white" text-anchor="start">check for UPST token AND refresh_token</text>
+    <text x="305" y="245" font-size="11" fill="#ffb300" text-anchor="start">(none found - start auth flow)</text>
 
     <!-- 4a. If no session: open browser -->
     <line x1="295" y1="320" x2="490" y2="320" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
@@ -112,10 +113,10 @@
     <text x="1310" y="120" font-size="12" fill="white" font-weight="600">Notes:</text>
     <text x="1310" y="140" font-size="11" fill="white">• Auth flow uses Authorization Code + PKCE</text>
     <text x="1310" y="155" font-size="11" fill="white">• Token exchange follows RFC8693 profile</text>
-    <text x="1310" y="170" font-size="11" fill="white">• Background refresh uses refresh_token</text>
+    <text x="1310" y="170" font-size="11" fill="white">• Refresh token used for silent token renewal</text>
     <text x="1310" y="185" font-size="11" fill="white">• Session artifacts stored in ~/.oci/sessions/</text>
     <text x="1310" y="200" font-size="11" fill="white">• OCI config updated with key_file, security_token_file</text>
-    <text x="1310" y="215" font-size="11" fill="white">• Refresh interval defaults to 0 (disabled)</text>
-    <text x="1310" y="230" font-size="11" fill="white">• Refresh token optionally encrypted</text>
+    <text x="1310" y="215" font-size="11" fill="white">• Refresh token optionally encrypted (AES-GCM)</text>
+    <text x="1310" y="230" font-size="11" fill="white">• OIDC providers may rotate refresh tokens (e.g., Okta)</text>
   </g>
 </svg>

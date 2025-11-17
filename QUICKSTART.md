@@ -6,9 +6,17 @@ Wraps the OCI CLI to transparently obtain and refresh an OCI session token (UPST
 2. Refresh Token grant (silent renew of access token)
 3. OCI Workload Identity Federation token exchange (RFC 8693 profile with OCI-specific extensions)
 
-## Sequence Diagram
+## Sequence Diagrams
 
-![Sequence Diagram](diagram.svg)
+### Initial Authentication Flow
+This diagram shows the workflow when no valid session token or refresh token exists (first-time use or after tokens expire):
+
+![Initial Authentication](diagram.svg)
+
+### Token Refresh Flow
+This diagram shows the silent refresh workflow when the UPST is expired but a valid refresh token exists:
+
+![Token Refresh](diagram-refresh.svg)
 
 ## Prerequisites
 

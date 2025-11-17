@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Segoe UI, Roboto, Arial">
+  <rect width="1600" height="900" fill="black"/>
+  <defs>
+    <marker id="arrow-black" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="white"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#b33"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#ffb300"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="50" y="30" font-size="18" fill="white" font-weight="600">Sequence Diagram: woci Token Refresh (Expired UPST + Valid Refresh Token)</text>
+
+  <!-- Participants -->
+  <g id="participants">
+    <text x="100" y="70" font-size="14" fill="white" text-anchor="middle">User</text>
+    <line x1="100" y1="80" x2="100" y2="850" stroke="white" stroke-width="2"/>
+
+    <text x="295" y="70" font-size="14" fill="white" text-anchor="middle">woci Script</text>
+    <line x1="295" y1="80" x2="295" y2="850" stroke="white" stroke-width="2"/>
+
+    <text x="490" y="70" font-size="14" fill="white" text-anchor="middle">OIDC Provider</text>
+    <line x1="490" y1="80" x2="490" y2="850" stroke="white" stroke-width="2"/>
+
+    <text x="685" y="70" font-size="14" fill="white" text-anchor="middle">OCI Domain</text>
+    <line x1="685" y1="80" x2="685" y2="850" stroke="white" stroke-width="2"/>
+
+    <text x="880" y="70" font-size="14" fill="white" text-anchor="middle">OCI CLI</text>
+    <line x1="880" y1="80" x2="880" y2="850" stroke="white" stroke-width="2"/>
+
+    <text x="1075" y="70" font-size="14" fill="white" text-anchor="middle">OCI Services</text>
+    <line x1="1075" y1="80" x2="1075" y2="850" stroke="white" stroke-width="2"/>
+  </g>
+
+  <!-- Messages -->
+  <g id="messages">
+    <!-- 1. User runs woci -->
+    <line x1="100" y1="120" x2="295" y2="120" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
+    <text x="110" y="110" font-size="12" fill="white" text-anchor="start">run woci command</text>
+
+    <!-- 2. Parse args, load config -->
+    <line x1="295" y1="170" x2="295" y2="210" stroke="#27a27a" stroke-width="2"/>
+    <text x="305" y="160" font-size="12" fill="white" text-anchor="start">parse args, load woci_manager.ini</text>
+
+    <!-- 3. Check for existing session -->
+    <line x1="295" y1="230" x2="295" y2="270" stroke="#27a27a" stroke-width="2"/>
+    <text x="305" y="220" font-size="12" fill="white" text-anchor="start">check UPST token (expired or &lt; 60s remaining)</text>
+    <text x="305" y="235" font-size="11" fill="#ffb300" text-anchor="start">check refresh_token (found - use silent refresh)</text>
+
+    <!-- 4. Load refresh token -->
+    <line x1="295" y1="290" x2="295" y2="330" stroke="#27a27a" stroke-width="2"/>
+    <text x="305" y="280" font-size="12" fill="white" text-anchor="start">load refresh_token (decrypt if needed)</text>
+
+    <!-- 5. Refresh access token -->
+    <line x1="295" y1="370" x2="490" y2="370" stroke="#b33" stroke-width="2" marker-end="url(#arrow-red)"/>
+    <text x="305" y="360" font-size="12" fill="white" text-anchor="start">POST refresh_token grant</text>
+
+    <!-- 6. Return new access token + maybe new refresh token -->
+    <line x1="490" y1="410" x2="295" y2="410" stroke="#b33" stroke-width="2" marker-end="url(#arrow-red)"/>
+    <text x="480" y="400" font-size="12" fill="white" text-anchor="end">return new JWT + refresh_token (if rotated)</text>
+
+    <!-- 7. Check if refresh token rotated -->
+    <line x1="295" y1="430" x2="295" y2="470" stroke="#27a27a" stroke-width="2"/>
+    <text x="305" y="420" font-size="12" fill="white" text-anchor="start">if refresh_token rotated, log and save new value</text>
+
+    <!-- 8. Exchange JWT for UPST -->
+    <line x1="295" y1="510" x2="685" y2="510" stroke="#b33" stroke-width="2" marker-end="url(#arrow-red)"/>
+    <text x="305" y="500" font-size="12" fill="white" text-anchor="start">RFC8693 exchange JWT → UPST</text>
+
+    <!-- 9. Save new UPST -->
+    <line x1="295" y1="550" x2="295" y2="590" stroke="#27a27a" stroke-width="2"/>
+    <text x="305" y="540" font-size="12" fill="white" text-anchor="start">save new UPST, refresh_token (if rotated)</text>
+
+    <!-- 10. Invoke OCI CLI -->
+    <line x1="295" y1="610" x2="880" y2="610" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
+    <text x="305" y="600" font-size="12" fill="white" text-anchor="start">invoke oci --auth security_token --profile ... + args</text>
+
+    <!-- 11. OCI CLI calls OCI Services -->
+    <line x1="880" y1="660" x2="1075" y2="660" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
+    <text x="890" y="650" font-size="12" fill="white" text-anchor="start">API request</text>
+
+    <!-- 12. OCI Services responds -->
+    <line x1="1075" y1="710" x2="880" y2="710" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
+    <text x="1065" y="700" font-size="12" fill="white" text-anchor="end">API response</text>
+
+    <!-- 13. OCI CLI exits -->
+    <line x1="880" y1="760" x2="295" y2="760" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
+    <text x="870" y="750" font-size="12" fill="white" text-anchor="end">exit with output</text>
+
+    <!-- 14. woci outputs to user -->
+    <line x1="295" y1="810" x2="100" y2="810" stroke="white" stroke-width="2" marker-end="url(#arrow-black)"/>
+    <text x="285" y="800" font-size="12" fill="white" text-anchor="end">command output</text>
+  </g>
+
+  <!-- Notes -->
+  <g id="notes">
+    <rect x="1300" y="100" width="281" height="180" rx="10" fill="#333" stroke="#333"/>
+    <text x="1310" y="120" font-size="12" fill="white" font-weight="600">Notes:</text>
+    <text x="1310" y="140" font-size="11" fill="white">• No browser interaction needed</text>
+    <text x="1310" y="155" font-size="11" fill="white">• Refresh token grant is silent/non-interactive</text>
+    <text x="1310" y="170" font-size="11" fill="white">• OIDC providers may rotate refresh tokens</text>
+    <text x="1310" y="185" font-size="11" fill="white">  (e.g., Okta returns new refresh_token)</text>
+    <text x="1310" y="200" font-size="11" fill="white">• Script stores rotated token automatically</text>
+    <text x="1310" y="215" font-size="11" fill="white">• If refresh fails, falls back to interactive auth</text>
+    <text x="1310" y="230" font-size="11" fill="white">• UPST validity checked: must have &gt; 60s remaining</text>
+    <text x="1310" y="245" font-size="11" fill="white">• Refresh token optionally encrypted (AES-GCM)</text>
+    <text x="1310" y="260" font-size="11" fill="white">• auth_client_id/secret used for refresh grant</text>
+  </g>
+</svg>
+
