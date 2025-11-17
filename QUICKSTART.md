@@ -11,6 +11,43 @@ Note: The token exchange follows RFC 8693 semantics with OCI extensions (e.g., r
 
 Note on installation: prerequisites differ by option. Option 1 uses your system Python and requires installing dependencies with pip. Option 2 installs dependencies inside a virtualenv you create. Option 3 runs an installer that creates its own virtualenv and installs dependencies automatically. See Install for details.
 
+## Get the code (Bitbucket)
+Choose one of the following ways to fetch the sources from the Bitbucket repo:
+
+- Git clone (recommended; gets the branch):
+```bash
+git clone https://bitbucket.org/gordontrevorrow/token-exchange.git
+cd token-exchange
+# checkout the feature branch
+git checkout feature/woci-session-manager
+```
+
+- Download the branch as a ZIP (no git required):
+```bash
+curl -L -o woci.zip \
+  "https://bitbucket.org/gordontrevorrow/token-exchange/get/feature/woci-session-manager.zip"
+unzip woci.zip
+cd gordontrevorrow-token-exchange-*
+```
+
+- Download a specific commit (locked snapshot):
+```bash
+# commit: 08ed2b830551ba34cfdff700f712934e2293dbda
+curl -L -o woci-commit.zip \
+  "https://bitbucket.org/gordontrevorrow/token-exchange/get/08ed2b830551ba34cfdff700f712934e2293dbda.zip"
+unzip woci-commit.zip
+cd gordontrevorrow-token-exchange-*
+```
+
+Expected files (minimal checklist):
+- `oci_upst_session_manager.py` (main tool)
+- `oci_session_wrapper.py` (CLI wrapper for oci session authenticate/refresh)
+- `requirements.txt` (deps)
+- `install.sh` (Option 3 installer)
+- `woci-manager.ini` (sample manager config)
+- `pyproject.toml` (Option 4 pipx install)
+- `QUICKSTART.md`, `LICENSE`
+
 ## Install
 
 Prerequisites:
