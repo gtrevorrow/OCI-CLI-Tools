@@ -26,7 +26,11 @@ fi
 
 # Install/upgrade deps
 "${APP_DIR}/venv/bin/pip" install --upgrade pip >/dev/null
-"${APP_DIR}/venv/bin/pip" install requests cryptography >/dev/null
+if [ -f "${SCRIPT_DIR}/requirements.txt" ]; then
+  "${APP_DIR}/venv/bin/pip" install -r "${SCRIPT_DIR}/requirements.txt" >/dev/null
+else
+  "${APP_DIR}/venv/bin/pip" install requests cryptography >/dev/null
+fi
 
 # Create launcher
 LAUNCHER="${BIN_DIR}/${APP_NAME}"
