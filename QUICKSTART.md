@@ -5,7 +5,6 @@ Wraps the OCI CLI to transparently obtain and refresh a security token (UPST) vi
 1. OAuth 2.0 Authorization Code + PKCE (interactive, first use)
 2. Refresh Token grant (silent renew of access token)
 3. OCI Workload Identity Federation token exchange (RFC 8693 profile with OCI-specific extensions)
-4. Optional background refresh loop (disabled by default: interval=0)
 
 Note: The token exchange follows RFC 8693 semantics with OCI extensions (e.g., requested_token_type=urn:oci:token-type:oci-upst, a required public_key parameter, and a response field named token).
 
@@ -157,7 +156,7 @@ Auto-discovery rules:
 3. If not found there, looks for `~/.oci/woci_manager.ini`.
 4. Explicit `--manager-config` overrides auto-discovery entirely.
 
-The manager INI supports a real `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `refresh_interval`, `log_level`).
+The manager INI supports a real `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `log_level`).
 CLI flags always override values from the selected section; `[COMMON]` fills in any missing keys for that section.
 If no profile section is selected or provided, a section literally named `[DEFAULT]` is used as the effective profile name (mirroring OCI behavior).
 
@@ -167,7 +166,6 @@ Sample `woci_manager.ini`:
 ```ini
 [COMMON]
 redirect_port = 8181
-refresh_interval = 0
 log_level = INFO
 
 [myprofile]
@@ -256,11 +254,6 @@ Using manager config only (auto-discovered):
 woci ce cluster generate-token --cluster-id OCID --profile myprofile
 ```
 
-Background refresh every 45 minutes:
-```bash
-woci --refresh-interval 45m ... <OCI COMMAND>
-```
-
 Encrypt refresh token (env var method):
 ```bash
 export WOCI_RT_PASSPHRASE="StrongPassphrase"
@@ -308,7 +301,7 @@ First call triggers interactive login; subsequent calls refresh silently.
 
 ## Security Notes
 - Refresh token is sensitive; prefer encryption at rest.
-- Session token lifetime capped at 60 minutes; refresh loop clamps interval.
+- Session token lifetime is capped at 60 minutes; the wrapper renews via refresh token before running OCI commands.
 - Passphrase derivation uses PBKDF2-HMAC-SHA256 (200k iterations) for a balanced cost.
 Additional considerations:
 - Avoid committing `woci_manager.ini` if it contains a `client_secret`.
@@ -323,8 +316,7 @@ Additional considerations:
 - Other non-zero codes: If the OCI CLI runs and returns a non-zero exit code (e.g. 3, 4, etc.), that code is passed through unchanged.
 
 Notes:
-- Background refresh thread (if enabled) does not alter the main exit code; failures there are logged.
-- Ctrl-C / SIGINT during background operation results in a clean shutdown with the passthrough OCI command's original exit code (often 0 if already finished).
+- Ctrl-C / SIGINT during passthrough execution propagates to the OCI CLI and results in its exit code.
 
 ## Unattended / Headless
 Use an initial interactive run to create artifacts, then rely on refresh token afterward. For truly headless environments ensure you can manually visit the Auth URL from a workstation and copy the redirected code if necessary.
@@ -350,7 +342,6 @@ Wrapper-only flags (not passed through to OCI; all other args are forwarded to t
 - `--client-id <id>` / `--client-secret <secret>`: OAuth2 client credentials (client_secret is required for OCI IAM token exchange).
 - `--scope <scopes>`: Must include `offline_access` to obtain a refresh token.
 - `--redirect-port <port>`: Local callback port (default `8181`); redirect URI is `http://127.0.0.1:<port>/callback`.
-- `--refresh-interval <0|Nm|Nh>`: Background refresh cadence (default `0` = disabled; clamped to ≤ 60m).
 - `--refresh-token-passphrase-env <VAR>`: Env var containing passphrase to encrypt/decrypt the refresh token file.
 - `--refresh-token-passphrase-prompt`: Prompt for passphrase interactively.
 - `--log-level <LEVEL>`: `DEBUG|INFO|WARNING|ERROR` (default `INFO`).

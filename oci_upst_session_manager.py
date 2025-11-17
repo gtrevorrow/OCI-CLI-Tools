@@ -94,24 +94,6 @@ def write_secret_file(path: str, content: bytes) -> None:
         pass
 
 
-def parse_interval_to_seconds(value: str) -> int:
-    s = value.strip().lower()
-    if s.endswith("h"):
-        minutes = int(s[:-1]) * 60
-    elif s.endswith("m"):
-        minutes = int(s[:-1])
-    else:
-        minutes = int(s)
-    if minutes < 0:
-        raise ValueError("refresh interval must be >= 0 minutes (0 disables background refresh)")
-    if minutes == 0:
-        return 0
-    if minutes > 60:
-        LOG.warning("refresh interval %d > 60; clamping to 60 due to session limits", minutes)
-        minutes = 60
-    return minutes * 60
-
-
 # ---------- OAuth PKCE (S256) helpers ----------
 
 import secrets
@@ -595,7 +577,7 @@ def run_cmd_passthrough(cmd_args: list[str], profile_name: Optional[str]) -> int
 
 
 def main():
-    p = argparse.ArgumentParser(description="OCI UPST session manager: Authorization Code + Refresh Token + Token Exchange + interval refresh", allow_abbrev=False)
+    p = argparse.ArgumentParser(description="OCI UPST session manager: Authorization Code + Refresh Token + Token Exchange", allow_abbrev=False)
     # Profile/OCI config
     p.add_argument("--profile-name", default=None, help="OCI profile name to create/update")
     p.add_argument("--region", default=None, help="OCI region, e.g., us-ashburn-1")
@@ -612,7 +594,6 @@ def main():
     # Crypto
     # removed --key-bits; always 2048
     # Schedule/Logging
-    p.add_argument("--refresh-interval", default=None, help="Refresh interval: 0 (disable), or 45, 45m, 1h (max 60m). If omitted, uses manager INI or disables.")
     p.add_argument("--log-level", default=None, help="Logging level (DEBUG, INFO, WARNING, ERROR). If omitted, uses manager INI or INFO.")
     # Refresh token encryption
     p.add_argument("--refresh-token-passphrase-env", default=None, help="Env var name holding passphrase to encrypt/decrypt refresh token")
@@ -738,7 +719,6 @@ def main():
     rp = pick("redirect_port", args.redirect_port)
     args.redirect_port = int(rp) if rp is not None else None
     args.token_exchange_url = pick("token_exchange_url", args.token_exchange_url)
-    args.refresh_interval = pick("refresh_interval", args.refresh_interval)
     args.log_level = pick("log_level", args.log_level)
 
     # Resolve effective profile name precedence: --profile-name > passthrough --profile > selected section name
@@ -787,34 +767,13 @@ def main():
         LOG.error("Failed to ensure session: %s", e)
         sys.exit(1)
 
-    # Interpret missing refresh_interval as disabled (no background refresh)
-    seconds = parse_interval_to_seconds(args.refresh_interval) if args.refresh_interval is not None else 0
-    stop_event = threading.Event()
-    th = None
-    if seconds > 0:
-        def handle_signal(signum, _):
-            LOG.info("Signal %s received; stopping.", signum)
-            stop_event.set()
-        import signal as pysignal
-        pysignal.signal(pysignal.SIGINT, handle_signal)
-        pysignal.signal(pysignal.SIGTERM, handle_signal)
-        th = threading.Thread(target=refresh_cycle, args=(args, stop_event, rt_passphrase, rt_iters), daemon=True)
-        th.start()
-
     rc = 0
     if passthrough:
         LOG.info("OCI passthrough args: %s", " ".join(passthrough))
         rc = run_cmd_passthrough(passthrough, args.profile_name)
     else:
-        LOG.info("No passthrough command specified. Session ensured; exiting (interval=%s).", args.refresh_interval if args.refresh_interval is not None else "disabled")
+        LOG.info("No passthrough command specified. Session ensured; exiting.")
 
-    if th is not None:
-        try:
-            while not stop_event.is_set():
-                time.sleep(0.2)
-        except KeyboardInterrupt:
-            stop_event.set()
-        th.join(timeout=5)
 
     sys.exit(rc)
 
