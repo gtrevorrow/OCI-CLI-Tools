@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "woci-session-manager"
+version = "0.1.0"
+description = "Wrapped OCI CLI for UPST session management with OAuth2 Authorization Code + token exchange"
+readme = "QUICKSTART.md"
+authors = [{ name="Gordon Trevorrow" }]
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = [
+  "requests>=2.31.0",
+  "cryptography>=41.0.0",
+]
+
+[project.urls]
+Homepage = "https://example.com/woci"
+
+[project.scripts]
+# Provide convenient CLI names for pipx installs
+woci = "oci_upst_session_manager:main"
+woci-session-manager = "oci_upst_session_manager:main"
+

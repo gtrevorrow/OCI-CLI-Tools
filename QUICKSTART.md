@@ -62,6 +62,30 @@ Notes:
 - Option 3 installs dependencies automatically from `requirements.txt` (no manual `pip install` needed).
 - The launcher name is `oci-upst-session-manager`; adding the `woci` alias keeps examples below consistent.
 
+### Option 4: pipx (isolated venv with global CLI)
+Install as an isolated app without managing virtualenvs yourself:
+```bash
+# install pipx if needed (macOS/Homebrew example)
+brew install pipx || python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+
+# from the repository root
+pipx install . --python python3
+woci --help
+```
+Upgrade or reinstall from local sources:
+```bash
+pipx uninstall woci-session-manager || true
+pipx install . --python python3
+```
+Uninstall:
+```bash
+pipx uninstall woci-session-manager
+```
+Notes:
+- This uses the console script entrypoint `woci` (also `woci-session-manager`) defined in `pyproject.toml`.
+- Dependencies are pinned by `requirements.txt` equivalents in `pyproject.toml` (requests, cryptography).
+
 ## Configuration Files
 
 OCI CLI config (standard): `~/.oci/config`
