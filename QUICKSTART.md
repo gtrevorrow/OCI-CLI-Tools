@@ -144,7 +144,9 @@ Notes:
 ## Configuration Files
 
 OCI CLI config (standard): `~/.oci/config`
+
 WOCI manager config (auto-discovered): `~/.oci/woci_manager.ini` OR same directory as any `--config-file` you pass.
+
 Default auto-discovery filename: `woci_manager.ini`.
 
 Auto-discovery rules:
@@ -261,21 +263,26 @@ woci --token-exchange-url https://login.us-ashburn-1.oraclecloud.com/oauth2/v1/t
 ```
 
 ## Kubeconfig Exec Integration
-Example user exec block:
+Example user exec block that references the woci-manager.ini config file and profile to generate a cluster token:
 ```yaml
-exec:
-  apiVersion: client.authentication.k8s.io/v1beta1
-  command: woci
-  args:
-    - --profile-name
-    - myprofile
-    - ce
-    - cluster
-    - generate-token
-    - --cluster-id
-    - OCID
-    - --auth
-    - security_token
+-  user:
+     exec:
+       apiVersion: client.authentication.k8s.io/v1beta1
+       args:
+         - ce
+         - cluster
+         - generate-token
+         - --cluster-id
+         - ocid1.cluster.oc1.iad.aaaaaaaat7zsrk4k2rn5y33v2srajzcbspo2t62jxzi73nkzfcsouxxxxx
+         - --region
+         - us-ashburn-1
+         - --auth
+         - security_token
+         - --profile
+         - myProfile
+         - --manager-config
+         - /Users/foo/Documents/projects/token-exchange/woci-manager.ini
+       command: woci
 ```
 First call triggers interactive login; subsequent calls refresh silently.
 
@@ -320,3 +327,46 @@ Edit constants (e.g., `REFRESH_TOKEN_KDF_ITERATIONS`) directly in the script if 
 
 ---
 For feature requests (OIDC discovery, configurable callback path, non-browser device flow fallback), extend the script where noted in comments.
+
+## Wrapper CLI options and precedence
+
+Wrapper-only flags (not passed through to OCI; all other args are forwarded to the `oci` CLI unchanged):
+- `--manager-config <path>`: Path to woci manager INI. If omitted, auto-discovery applies (see Configuration Files).
+- `--manager-config-section <name>`: Section name inside the manager INI to load.
+- `--profile-name <name>`: Profile name the wrapper manages (artifacts under `~/.oci/sessions/<name>`; OCI config updated for this profile). Passthrough `--profile` is still forwarded to OCI.
+- `--authz-base-url <url>`: Full authorization endpoint URL used for Authorization Code flow with PKCE.
+- `--token-url <url>`: OAuth2 token endpoint for authz code and refresh grants.
+- `--token-exchange-url <url>`: Optional; if omitted, `--token-url` is reused for exchange.
+- `--client-id <id>` / `--client-secret <secret>`: OAuth2 client credentials (client_secret is required for OCI IAM token exchange).
+- `--scope <scopes>`: Must include `offline_access` to obtain a refresh token.
+- `--redirect-port <port>`: Local callback port (default `8181`); redirect URI is `http://127.0.0.1:<port>/callback`.
+- `--refresh-interval <0|Nm|Nh>`: Background refresh cadence (default `0` = disabled; clamped to ≤ 60m).
+- `--refresh-token-passphrase-env <VAR>`: Env var containing passphrase to encrypt/decrypt the refresh token file.
+- `--refresh-token-passphrase-prompt`: Prompt for passphrase interactively.
+- `--log-level <LEVEL>`: `DEBUG|INFO|WARNING|ERROR` (default `INFO`).
+
+Pass-through behavior:
+- Unknown flags/args (including all OCI subcommands and options) are forwarded to the `oci` CLI as-is.
+- If not present, the wrapper adds `--auth security_token` and `--profile <resolved-profile>` to the forwarded `oci` command.
+
+Precedence (values):
+- CLI flag value > value from manager INI (selected section) > built-in default.
+- Region: wrapper does not read `region` from the manager INI. Supply `--region` on the CLI if you want the wrapper to seed/update the OCI profile; otherwise OCI CLI resolves region from `~/.oci/config`.
+
+Manager INI selection (when multiple sections exist):
+1) Explicit `--manager-config-section` if present
+2) Section named exactly as `--profile-name` (if provided and exists)
+3) Section named as passthrough `--profile` (if `--profile-name` not provided and exists)
+4) `DEFAULT` pseudo-section (values only)
+5) First real section
+
+Profile resolution (effective profile that governs artifacts under `~/.oci/sessions/<profile>` and OCI profile updates):
+1) `--profile-name` (wrapper flag)
+2) Passthrough `--profile` (from the forwarded OCI args)
+3) Selected manager INI section name (not `DEFAULT`)
+
+If no effective profile can be determined, the wrapper exits with an error.
+
+URL validation:
+- `--authz-base-url`, `--token-url`, and (if supplied) `--token-exchange-url` must start with `http://` or `https://`.
+
