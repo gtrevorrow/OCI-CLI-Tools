@@ -155,6 +155,10 @@ Auto-discovery rules:
 3. If not found there, looks for `~/.oci/woci_manager.ini`.
 4. Explicit `--manager-config` overrides auto-discovery entirely.
 
+The manager INI supports a real `[DEFAULT]` section. Values defined under `[DEFAULT]` are inherited by all named sections.
+CLI flags always override values from the selected section or `[DEFAULT]`. The script has no hard-coded defaults for
+`redirect_port`, `refresh_interval`, or `log_level`—provide them via CLI or manager INI (e.g., `[DEFAULT]`).
+
 Section name chosen using precedence documented in Profile Resolution Semantics. CLI flags override section values; manager config never overrides an explicitly supplied CLI flag.
 
 Sample `woci_manager.ini`:
@@ -357,7 +361,7 @@ Manager INI selection (when multiple sections exist):
 1) Explicit `--manager-config-section` if present
 2) Section named exactly as `--profile-name` (if provided and exists)
 3) Section named as passthrough `--profile` (if `--profile-name` not provided and exists)
-4) `DEFAULT` pseudo-section (values only)
+4) `[DEFAULT]` values are applied to any section but do not provide a section name
 5) First real section
 
 Profile resolution (effective profile that governs artifacts under `~/.oci/sessions/<profile>` and OCI profile updates):
@@ -369,4 +373,3 @@ If no effective profile can be determined, the wrapper exits with an error.
 
 URL validation:
 - `--authz-base-url`, `--token-url`, and (if supplied) `--token-exchange-url` must start with `http://` or `https://`.
-

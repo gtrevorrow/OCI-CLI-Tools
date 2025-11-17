@@ -679,52 +679,37 @@ def main():
         if os.path.exists(candidate):
             auto_manager_path = candidate
     manager_path = args.manager_config or auto_manager_path
+    cp = None
     if manager_path:
         cp = configparser.ConfigParser()
         try:
             read_files = cp.read(manager_path)
-            if not read_files:
-                if args.manager_config:
-                    print(f"Failed to read manager-config file: {manager_path}", file=sys.stderr)
-                    sys.exit(2)
-            else:
-                # Section resolution order:
-                # 1. Explicit --manager-config-section
-                # 2. Section named exactly as --profile-name (if provided and exists)
-                # 3. Section named exactly as passthrough --profile (if --profile-name not provided and exists)
-                # 4. DEFAULT pseudo-section (only if neither profile-name nor passthrough profile specified)
-                # 5. First real section fallback
+            if not read_files and args.manager_config:
+                print(f"Failed to read manager-config file: {manager_path}", file=sys.stderr)
+                sys.exit(2)
+            if read_files:
+                # Section resolution order remains the same; note that configparser provides [DEFAULT] inherently
                 if args.manager_config_section and args.manager_config_section in cp:
                     selected_section_name = args.manager_config_section
                 elif args.profile_name and args.profile_name in cp:
                     selected_section_name = args.profile_name
                 elif (not args.profile_name and cli_profile and cli_profile in cp):
                     selected_section_name = cli_profile
-                elif (not args.profile_name and not cli_profile and not args.manager_config_section and cp.defaults()):
-                    # Use DEFAULT values directly
-                    ini_section_data = {k: v for k, v in cp.defaults().items()}
-                    selected_section_name = 'DEFAULT'
-                if selected_section_name is None and not ini_section_data:
-                    real_sections = cp.sections()
-                    if real_sections:
-                        selected_section_name = real_sections[0]
+                # If nothing selected, we will rely on cp.defaults() only (actual [DEFAULT] section in INI)
                 if selected_section_name:
-                    # Only populate if not already using DEFAULT pseudo-section
-                    if selected_section_name != 'DEFAULT':
-                        ini_section_data = {k: v for k, v in cp[selected_section_name].items()}
-                elif args.manager_config and not ini_section_data:
-                    print("No usable section found in manager-config file.", file=sys.stderr)
-                    sys.exit(2)
+                    # Use section items which include inherited DEFAULT values
+                    ini_section_data = {k: v for k, v in cp[selected_section_name].items()}
+                else:
+                    # Use only DEFAULT values
+                    ini_section_data = {k: v for k, v in cp.defaults().items()}
         except Exception as e:
             if args.manager_config:
                 print(f"Error reading manager-config: {e}", file=sys.stderr)
                 sys.exit(2)
 
+    # Remove hard-coded defaults; only retain fallback for OCI config file path
     DEFAULTS = {
         "config_file": os.path.expanduser(os.path.join(f"~/{OCI_DIRNAME}", OCI_CONFIG_FILENAME)),
-        "redirect_port": 8181,
-        "refresh_interval": "0",
-        "log_level": "INFO",
     }
 
     def pick(name, cli_val, cast=None):
@@ -743,7 +728,9 @@ def main():
     args.client_id = pick("client_id", args.client_id)
     args.client_secret = pick("client_secret", args.client_secret)
     args.scope = pick("scope", args.scope)
-    args.redirect_port = pick("redirect_port", args.redirect_port, int)
+    # No hard-coded default for redirect_port or refresh_interval; must come from CLI or manager INI [DEFAULT]/section
+    rp = pick("redirect_port", args.redirect_port)
+    args.redirect_port = int(rp) if rp is not None else None
     args.token_exchange_url = pick("token_exchange_url", args.token_exchange_url)
     args.refresh_interval = pick("refresh_interval", args.refresh_interval)
     args.log_level = pick("log_level", args.log_level)
@@ -752,11 +739,11 @@ def main():
     if not args.profile_name:
         if cli_profile:
             args.profile_name = cli_profile
-        elif selected_section_name:
+        elif selected_section_name and selected_section_name != 'DEFAULT':
             args.profile_name = selected_section_name
 
     if not args.profile_name:
-        print("Could not determine profile name: supply --profile-name, --profile, or ensure manager config has a section.", file=sys.stderr)
+        print("Could not determine profile name: supply --profile-name, --profile, or ensure manager config has a named section.", file=sys.stderr)
         sys.exit(2)
 
     # Encryption flags
@@ -765,10 +752,10 @@ def main():
     if args.refresh_token_passphrase_env is None:
         args.refresh_token_passphrase_env = ini_section_data.get("refresh_token_passphrase_env")
 
-    # Required args (excluding profile_name which we resolved separately)
-    missing = [k for k in ["authz_base_url", "token_url", "client_id", "client_secret", "scope"] if getattr(args, k) in (None, "")]
+    # Required args check (expanded): require redirect_port to avoid unregistered redirect issues
+    missing = [k for k in ["authz_base_url", "token_url", "client_id", "client_secret", "scope", "redirect_port"] if getattr(args, k) in (None, "")]
     if missing:
-        print(f"Missing required options: {', '.join(missing)}. Provide via CLI or manager-config.", file=sys.stderr)
+        print(f"Missing required options: {', '.join(missing)}. Provide via CLI or manager-config [DEFAULT]/section.", file=sys.stderr)
         sys.exit(2)
 
     # Validation of URL shape (must look like http/https)
@@ -781,10 +768,9 @@ def main():
         print("Invalid URL value(s): " + ", ".join(f"{n}='{v}'" for n,v in bad) + "; must start with http:// or https://", file=sys.stderr)
         sys.exit(2)
 
-    setup_logging(args.log_level)
+    setup_logging(args.log_level or "INFO")
 
-    LOG.info("Resolved config: profile=%s authz_url=%s token_url=%s exchange_url=%s scope='%s' source_profile_cli=%s section=%s", args.profile_name, args.authz_base_url, args.token_url, args.token_exchange_url or args.token_url, args.scope, cli_profile, selected_section_name)
-    LOG.info("Profile resolution precedence applied (profile-name > passthrough --profile > section name). Using profile '%s'.", args.profile_name)
+    LOG.info("Resolved config: profile=%s authz_url=%s token_url=%s exchange_url=%s scope='%s' redirect_port=%s", args.profile_name, args.authz_base_url, args.token_url, args.token_exchange_url or args.token_url, args.scope, args.redirect_port)
 
     rt_passphrase = get_rt_passphrase(args)
     rt_iters = REFRESH_TOKEN_KDF_ITERATIONS
@@ -795,7 +781,8 @@ def main():
         LOG.error("Failed to ensure session: %s", e)
         sys.exit(1)
 
-    seconds = parse_interval_to_seconds(args.refresh_interval)
+    # Interpret missing refresh_interval as disabled (no background refresh)
+    seconds = parse_interval_to_seconds(args.refresh_interval) if args.refresh_interval is not None else 0
     stop_event = threading.Event()
     th = None
     if seconds > 0:
@@ -813,7 +800,7 @@ def main():
         LOG.info("OCI passthrough args: %s", " ".join(passthrough))
         rc = run_cmd_passthrough(passthrough, args.profile_name)
     else:
-        LOG.info("No passthrough command specified. Session ensured; exiting (interval=%s).", args.refresh_interval)
+        LOG.info("No passthrough command specified. Session ensured; exiting (interval=%s).", args.refresh_interval if args.refresh_interval is not None else "disabled")
 
     if th is not None:
         try:
