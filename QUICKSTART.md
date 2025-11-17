@@ -7,6 +7,8 @@ Wraps the OCI CLI to transparently obtain and refresh a security token (UPST) vi
 3. RFC 8693 Token Exchange (access token -> OCI UPST)
 4. Optional background refresh loop (disabled by default: interval=0)
 
+Note on installation: prerequisites differ by option. Option 1 uses your system Python and requires installing dependencies with pip. Option 2 installs dependencies inside a virtualenv you create. Option 3 runs an installer that creates its own virtualenv and installs dependencies automatically. See Install for details.
+
 ## Install
 
 Prerequisites:
