@@ -1,4 +1,5 @@
 # WOCI Session Manager Quick Start
+<!-- License: MIT (see LICENSE file). Copyright (c) 2025 Gordon Trevorrow -->
 
 Wraps the OCI CLI to transparently obtain and refresh a security token (UPST) via:
 1. OAuth 2.0 Authorization Code + PKCE (interactive, first use)
