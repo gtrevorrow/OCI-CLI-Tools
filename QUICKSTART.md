@@ -11,6 +11,25 @@ Note: The token exchange follows RFC 8693 semantics with OCI extensions (e.g., r
 
 Note on installation: prerequisites differ by option. Option 1 uses your system Python and requires installing dependencies with pip. Option 2 installs dependencies inside a virtualenv you create. Option 3 runs an installer that creates its own virtualenv and installs dependencies automatically. See Install for details.
 
+## Prerequisites
+
+Before installing the wrapper, ensure you have:
+
+### OCI Workload Identity Federation Configuration
+- **Trust relationship configured**: OCI Workload Identity Federation must be set up to establish trust between your OAuth/OIDC authorization server (e.g., Oracle IDCS) and an OCI IAM domain.
+- **User exists in the domain**: Your user account must exist in the OCI IAM domain that trusts the authorization server.
+- **OAuth client registered**: An OAuth 2.0 client (confidential client with client_id and client_secret) must be registered in your authorization server with:
+  - Authorization Code grant type enabled
+  - Refresh Token grant type enabled (offline_access scope)
+  - Redirect URI `http://127.0.0.1:8181/callback` (or your chosen port) registered
+- **Token exchange endpoint**: The authorization server's token endpoint must support OCI's RFC 8693 profile (token exchange to urn:oci:token-type:oci-upst).
+
+See [OCI Workload Identity Federation documentation](https://docs.oracle.com/en-us/iaas/Content/Identity/federation/workload-identity-federation.htm) for detailed setup steps.
+
+### Runtime Requirements
+- Python 3.9+ (Options 1 and 2). Option 3 creates its own virtualenv.
+- OCI CLI installed and on PATH (`oci` command available)
+
 ## Get the code (Bitbucket)
 Choose one of the following ways to fetch the sources from the Bitbucket repo:
 
