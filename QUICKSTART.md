@@ -9,7 +9,9 @@ Wraps the OCI CLI to transparently obtain and refresh a security token (UPST) vi
 
 Note: The token exchange follows RFC 8693 semantics with OCI extensions (e.g., requested_token_type=urn:oci:token-type:oci-upst, a required public_key parameter, and a response field named token).
 
-Note on installation: prerequisites differ by option. Option 1 uses your system Python and requires installing dependencies with pip. Option 2 installs dependencies inside a virtualenv you create. Option 3 runs an installer that creates its own virtualenv and installs dependencies automatically. See Install for details.
+## Sequence Diagram
+
+![Sequence Diagram](diagram.svg)
 
 ## Prerequisites
 
