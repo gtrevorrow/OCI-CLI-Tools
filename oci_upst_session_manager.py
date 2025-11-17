@@ -243,7 +243,7 @@ def oauth_authorization_code_flow(args) -> dict:
     # Use authz_base_url as the full authorization endpoint URL
     auth_url = args.authz_base_url + "?" + urlencode({
         "response_type": "code",
-        "client_id": args.client_id,
+        "client_id": args.auth_client_id,
         "redirect_uri": redirect_uri,
         "scope": args.scope,
         "state": state,
@@ -288,12 +288,12 @@ def oauth_authorization_code_flow(args) -> dict:
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": redirect_uri,
-        "client_id": args.client_id,
+        "client_id": args.auth_client_id,
         "code_verifier": verifier,
     }
     auth = None
-    if args.client_secret:
-        auth = (args.client_id, args.client_secret)
+    if args.auth_client_secret:
+        auth = (args.auth_client_id, args.auth_client_secret)
     resp = requests.post(token_url, data=data, auth=auth)
     resp.raise_for_status()
     tok = resp.json()
@@ -473,11 +473,11 @@ def ensure_session(args, rt_passphrase: Optional[str], rt_iterations: int) -> No
             data = {
                 "grant_type": "refresh_token",
                 "refresh_token": refresh_token,
-                "client_id": args.client_id,
+                "client_id": args.auth_client_id,
             }
             auth = None
-            if args.client_secret:
-                auth = (args.client_id, args.client_secret)
+            if args.auth_client_secret:
+                auth = (args.auth_client_id, args.auth_client_secret)
             resp = requests.post(token_url, data=data, auth=auth)
             resp.raise_for_status()
             tok = resp.json()
@@ -494,63 +494,6 @@ def ensure_session(args, rt_passphrase: Optional[str], rt_iterations: int) -> No
     tokens = oauth_authorization_code_flow(args)
     perform_exchange_and_save(args, tokens["access_token"], tokens.get("refresh_token"), rt_passphrase, rt_iterations)
     LOG.info("New session created via Authorization Code flow.")
-
-
-def refresh_cycle(args, stop_event: threading.Event, rt_passphrase: Optional[str], rt_iterations: int):
-    seconds = parse_interval_to_seconds(args.refresh_interval)
-    if seconds == 0:
-        LOG.info("Background refresh disabled (refresh-interval=0).")
-        return
-    base_dir, token_path, key_path, rt_path = resolve_oci_paths(args.config_file, args.profile_name)
-    token_url = args.token_url
-    if not token_url:
-        LOG.error("token_url is required for refresh cycle; provide it via CLI or manager-config")
-        return
-    exchange_url = args.token_exchange_url or token_url
-    with open(key_path, "rb") as f:
-        key = serialization.load_pem_private_key(f.read(), password=None)
-    pub_b64 = b64_der_spki(key.public_key())
-    while not stop_event.is_set():
-        next_run = datetime.now(timezone.utc) + timedelta(seconds=seconds)
-        mins = seconds // 60
-        LOG.info("Next refresh in %d minute(s) (at %s UTC)", mins, next_run.isoformat())
-        if stop_event.wait(timeout=seconds):
-            break
-        try:
-            refresh_token = load_refresh_token(rt_path, rt_passphrase)
-        except Exception:
-            LOG.error("Refresh token missing or cannot be decrypted; cannot refresh. Exiting loop.")
-            break
-        data = {
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-            "client_id": args.client_id,
-        }
-        auth = None
-        if args.client_secret:
-            auth = (args.client_id, args.client_secret)
-        try:
-            resp = requests.post(token_url, data=data, auth=auth)
-            resp.raise_for_status()
-            tok = resp.json()
-            access_token = tok["access_token"]
-            new_rt = tok.get("refresh_token")
-        except Exception as e:
-            LOG.error("Token refresh failed: %s", e)
-            continue
-        try:
-            exch = token_exchange_jwt_to_upst(exchange_url, args.client_id, args.client_secret or "", pub_b64, access_token)
-            upst = exch["token"]
-        except Exception as e:
-            LOG.error("Token exchange failed: %s", e)
-            continue
-        try:
-            write_secret_file(token_path, upst.encode())
-            if new_rt:
-                save_refresh_token(rt_path, new_rt, rt_passphrase, rt_iterations)
-            LOG.info("Refresh completed successfully at %s UTC", datetime.now(timezone.utc).isoformat())
-        except Exception as e:
-            LOG.error("Failed to write refreshed materials: %s", e)
 
 
 def run_cmd_passthrough(cmd_args: list[str], profile_name: Optional[str]) -> int:
@@ -583,10 +526,12 @@ def main():
     p.add_argument("--region", default=None, help="OCI region, e.g., us-ashburn-1")
     p.add_argument("--config-file", default=None, help="Path to OCI config (default: ~/.oci/config)")
     # OAuth/AuthZ
-    p.add_argument("--authz-base-url", default=None, help="Full authorization endpoint URL (e.g., https://idcs-xxx.identity.oraclecloud.com/oauth2/v1/authorize)")
+    p.add_argument("--authz-base-url", default=None, help="Full.authorization endpoint URL (e.g., https://idcs-xxx.identity.oraclecloud.com/oauth2/v1/authorize)")
     p.add_argument("--token-url", default=None, help="Token endpoint URL (required)")
-    p.add_argument("--client-id", default=None, help="OAuth client id")
-    p.add_argument("--client-secret", default=None, help="OAuth client secret (required for OCI IAM token exchange)")
+    p.add_argument("--auth-client-id", default=None, help="OAuth/OIDC client id used for the Authorization Code + Refresh Token grants")
+    p.add_argument("--auth-client-secret", default=None, help="OAuth/OIDC client secret for the Authorization/Refresh client")
+    p.add_argument("--client-id", default=None, help="OCI token-exchange client id (Workload Identity Federation)")
+    p.add_argument("--client-secret", default=None, help="OCI token-exchange client secret (required for OCI IAM token exchange)")
     p.add_argument("--scope", default=None, help="Requested scopes (must include offline_access to get a refresh token)")
     p.add_argument("--redirect-port", type=int, default=None, help="Local redirect port (provide via CLI or manager INI; commonly 8181)")
     # Token exchange
@@ -712,6 +657,8 @@ def main():
     args.config_file = pick("config_file", args.config_file)
     args.authz_base_url = pick("authz_base_url", args.authz_base_url)
     args.token_url = pick("token_url", args.token_url)
+    args.auth_client_id = pick("auth_client_id", args.auth_client_id)
+    args.auth_client_secret = pick("auth_client_secret", args.auth_client_secret)
     args.client_id = pick("client_id", args.client_id)
     args.client_secret = pick("client_secret", args.client_secret)
     args.scope = pick("scope", args.scope)
@@ -739,7 +686,7 @@ def main():
         args.refresh_token_passphrase_env = ini_section_data.get("refresh_token_passphrase_env")
 
     # Required args check (expanded): require redirect_port to avoid unregistered redirect issues
-    missing = [k for k in ["authz_base_url", "token_url", "client_id", "client_secret", "scope", "redirect_port"] if getattr(args, k) in (None, "")]
+    missing = [k for k in ["authz_base_url", "token_url", "auth_client_id", "client_id", "client_secret", "scope", "redirect_port"] if getattr(args, k) in (None, "")]
     if missing:
         print(f"Missing required options: {', '.join(missing)}. Provide via CLI or manager-config [DEFAULT]/section.", file=sys.stderr)
         sys.exit(2)

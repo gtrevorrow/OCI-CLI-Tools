@@ -1,12 +1,10 @@
 # WOCI Session Manager Quick Start
 <!-- License: MIT (see LICENSE file). Copyright (c) 2025 Gordon Trevorrow -->
 
-Wraps the OCI CLI to transparently obtain and refresh a security token (UPST) via:
+Wraps the OCI CLI to transparently obtain and refresh an OCI session token (UPST) via:
 1. OAuth 2.0 Authorization Code + PKCE (interactive, first use)
 2. Refresh Token grant (silent renew of access token)
 3. OCI Workload Identity Federation token exchange (RFC 8693 profile with OCI-specific extensions)
-
-Note: The token exchange follows RFC 8693 semantics with OCI extensions (e.g., requested_token_type=urn:oci:token-type:oci-upst, a required public_key parameter, and a response field named token).
 
 ## Sequence Diagram
 
@@ -171,8 +169,10 @@ log_level = INFO
 [myprofile]
 authz_base_url = https://idcs-tenant.identity.oraclecloud.com/oauth2/v1/authorize
 token_url = https://idcs-tenant.identity.oraclecloud.com/oauth2/v1/token
-client_id = YOUR_CLIENT_ID
-client_secret = YOUR_CLIENT_SECRET
+auth_client_id = YOUR_AUTH_CODE_CLIENT_ID
+auth_client_secret = YOUR_AUTH_CODE_CLIENT_SECRET
+client_id = YOUR_OCI_EXCHANGE_CLIENT_ID
+client_secret = YOUR_OCI_EXCHANGE_CLIENT_SECRET
 scope = openid offline_access
 ```
 
@@ -208,9 +208,14 @@ Change port with `--redirect-port <port>` (must match a registered redirect URI 
 Make sure you register the exact URI (host, port, path) with your authorization server.
 
 ## Required Runtime Values
-Must be provided via CLI or manager config: `authz_base_url`, `token_url`, `client_id`, `client_secret`, `scope`.
+Must be provided via CLI or manager config: `authz_base_url`, `token_url`, `auth_client_id`, `client_id`, `client_secret`, `scope`.
 `client_secret` is mandatory for OCI IAM token exchange.
 - `scope` must include `offline_access` (or equivalent for your provider) to obtain a refresh token.
+
+### Why two client registrations?
+Most deployments need two distinct OAuth clients:
+1. **Authorization/Refresh client (`auth_client_id`, optional `auth_client_secret`)** – lives in your OIDC provider (Okta, Azure AD, IDCS, etc.) and handles the Authorization Code + Refresh Token grants. It issues ID/access tokens and long-lived refresh tokens that represent the human user.
+2. **OCI Workload Identity Federation client (`client_id`/`client_secret`)** – lives in the OCI IAM domain that trusts your OIDC provider. It participates in the RFC 8693 token exchange, taking the access token from step 1 and producing an OCI UPST tied to your OCI profile.
 
 ## Encryption (Optional)
 Provide a passphrase to encrypt the refresh token file:
@@ -338,6 +343,7 @@ Wrapper-only flags (not passed through to OCI; all other args are forwarded to t
 - `--profile-name <name>`: Profile name the wrapper manages (artifacts under `~/.oci/sessions/<name>`; OCI config updated for this profile). Passthrough `--profile` is still forwarded to OCI.
 - `--authz-base-url <url>`: Full authorization endpoint URL used for Authorization Code flow with PKCE.
 - `--token-url <url>`: OAuth2 token endpoint for authz code and refresh grants.
+- `--auth-client-id <id>` / `--auth-client-secret <secret>`: OAuth/OIDC client credentials used to perform the Authorization Code + Refresh Token grants against your identity provider.
 - `--token-exchange-url <url>`: Optional; if omitted, `--token-url` is reused for exchange.
 - `--client-id <id>` / `--client-secret <secret>`: OAuth2 client credentials (client_secret is required for OCI IAM token exchange).
 - `--scope <scopes>`: Must include `offline_access` to obtain a refresh token.
@@ -345,28 +351,3 @@ Wrapper-only flags (not passed through to OCI; all other args are forwarded to t
 - `--refresh-token-passphrase-env <VAR>`: Env var containing passphrase to encrypt/decrypt the refresh token file.
 - `--refresh-token-passphrase-prompt`: Prompt for passphrase interactively.
 - `--log-level <LEVEL>`: `DEBUG|INFO|WARNING|ERROR` (default `INFO`).
-
-Pass-through behavior:
-- Unknown flags/args (including all OCI subcommands and options) are forwarded to the `oci` CLI as-is.
-- If not present, the wrapper adds `--auth security_token` and `--profile <resolved-profile>` to the forwarded `oci` command.
-
-Precedence (values):
-- CLI flag value > value from manager INI section (with `[COMMON]` merged) > none (no script hard-coded defaults except `config_file`).
-- Region: wrapper does not read `region` from the manager INI. Supply `--region` on the CLI if you want the wrapper to seed/update the OCI profile; otherwise OCI CLI resolves region from `~/.oci/config`.
-
-Manager INI selection (when multiple sections exist):
-1) Explicit `--manager-config-section` if present
-2) Section named exactly as `--profile-name` (if provided and exists)
-3) Section named as passthrough `--profile` (if `--profile-name` not provided and exists)
-4) Section named `DEFAULT` (used as the effective profile when none is provided)
-5) First real section
-
-Profile resolution (effective profile that governs artifacts under `~/.oci/sessions/<profile>` and OCI profile updates):
-1) `--profile-name` (wrapper flag)
-2) Passthrough `--profile` (from the forwarded OCI args)
-3) Selected manager INI section name (including `DEFAULT` if chosen)
-
-If no effective profile can be determined, the wrapper exits with an error.
-
-URL validation:
-- `--authz-base-url`, `--token-url`, and (if supplied) `--token-exchange-url` must start with `http://` or `https://`.
