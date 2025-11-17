@@ -606,21 +606,21 @@ def main():
     p.add_argument("--client-id", default=None, help="OAuth client id")
     p.add_argument("--client-secret", default=None, help="OAuth client secret (required for OCI IAM token exchange)")
     p.add_argument("--scope", default=None, help="Requested scopes (must include offline_access to get a refresh token)")
-    p.add_argument("--redirect-port", type=int, default=None, help="Local redirect port (default 8181)")
+    p.add_argument("--redirect-port", type=int, default=None, help="Local redirect port (provide via CLI or manager INI; commonly 8181)")
     # Token exchange
     p.add_argument("--token-exchange-url", default=None, help="Token exchange URL (default: --token-url)")
     # Crypto
     # removed --key-bits; always 2048
     # Schedule/Logging
-    p.add_argument("--refresh-interval", default=None, help="Refresh interval: 0 (disable), or 45, 45m, 1h (max 60m; default 0)")
-    p.add_argument("--log-level", default=None, help="Logging level (DEBUG, INFO, WARNING, ERROR; default INFO)")
+    p.add_argument("--refresh-interval", default=None, help="Refresh interval: 0 (disable), or 45, 45m, 1h (max 60m). If omitted, uses manager INI or disables.")
+    p.add_argument("--log-level", default=None, help="Logging level (DEBUG, INFO, WARNING, ERROR). If omitted, uses manager INI or INFO.")
     # Refresh token encryption
     p.add_argument("--refresh-token-passphrase-env", default=None, help="Env var name holding passphrase to encrypt/decrypt refresh token")
     p.add_argument("--refresh-token-passphrase-prompt", action="store_true", help="Prompt for passphrase to encrypt/decrypt refresh token")
     # removed --refresh-token-kdf-iterations; use constant REFRESH_TOKEN_KDF_ITERATIONS
     # Manager config file (INI)
     p.add_argument("--manager-config", default=None, help="Path to optional INI config file (OCI style). If omitted, the wrapper will look for '" + MANAGER_DEFAULT_FILENAME + "' beside the OCI --config-file (or in ~/.oci when --config-file not supplied). CLI flags override values from this file.")
-    p.add_argument("--manager-config-section", default=None, help="Section name inside manager INI to load (resolution order: explicit --manager-config-section, --profile-name, DEFAULT pseudo-section, first real section)")
+    p.add_argument("--manager-config-section", default=None, help="Section name inside manager INI to load (order: explicit, --profile-name, passthrough --profile, DEFAULT, first real section)")
 
     args, passthrough = p.parse_known_args()
 
@@ -635,24 +635,16 @@ def main():
     #   1. --profile-name (wrapper-specific flag)
     #   2. Passthrough --profile (OCI CLI flag captured from remaining args)
     #   3. Selected manager-config section name (explicit --manager-config-section OR auto-picked)
-    #      If DEFAULT pseudo-section is used, its values are merged but do not supply a section name;
-    #      you still need a profile from (1) or (2) or any real section.
+    #      Section selection order: explicit, --profile-name, passthrough --profile, section named DEFAULT, first real section.
     # Failure mode:
     #   If after precedence evaluation no profile is determined, the wrapper exits with a clear error.
     # Manager Config Auto-Discovery:
     #   If --manager-config is omitted, we look for a file named `woci_manager.ini` in the same directory
     #   as the resolved OCI --config-file (or ~/.oci by default). If found, it is loaded.
-    # Section Resolution (manager config):
-    #   1. Explicit --manager-config-section (if present)
-    #   2. Section named exactly as --profile-name (if provided and exists)
-    #   3. Section named exactly as passthrough --profile (if --profile-name not provided and exists)
-    #   4. DEFAULT pseudo-section (only if neither profile-name nor passthrough profile specified)
-    #   5. First real section fallback
-    # Notes:
-    #   - DEFAULT pseudo-section only contributes key/value pairs but is not itself a profile name.
-    #   - Values from the chosen section are used only when CLI flags are absent (CLI overrides config).
-    #   - Required runtime values: authz_base_url, token_url, client_id, client_secret, scope.
-    #   - client_secret is mandatory for OCI IAM token exchange.
+    # Manager INI merging:
+    #   Values are merged as [COMMON] base plus the selected section overrides. CLI flags override both.
+    # Required runtime values: authz_base_url, token_url, client_id, client_secret, scope, redirect_port.
+    # client_secret is mandatory for OCI IAM token exchange.
     # --------------------------------------------------------------------------------------
     cli_profile = None
     i = 0
