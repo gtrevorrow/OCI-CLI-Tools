@@ -598,14 +598,28 @@ def main():
         candidate = os.path.join(cfg_dir, MANAGER_DEFAULT_FILENAME)
         if os.path.exists(candidate):
             auto_manager_path = candidate
-    manager_path = args.manager_config or auto_manager_path
+    # Allow manager-config path to be provided via environment variable as well.
+    # Precedence: CLI flag (--manager-config) > env var WOCI_MANAGER_CONFIG > auto-discovered file
+    mgr_env = os.environ.get("WOCI_MANAGER_CONFIG")
+    manager_path_source = None
+    if args.manager_config:
+        manager_path = args.manager_config
+        manager_path_source = 'cli'
+    elif mgr_env:
+        manager_path = mgr_env
+        manager_path_source = 'env'
+    else:
+        manager_path = auto_manager_path
+        manager_path_source = 'auto' if auto_manager_path else None
+
     cp = None
     common_data = {}
     if manager_path:
         cp = configparser.ConfigParser()
         try:
             read_files = cp.read(manager_path)
-            if not read_files and args.manager_config:
+            # If the manager path came from CLI or env, treat it as explicit and error if unreadable
+            if not read_files and manager_path_source in ('cli', 'env'):
                 print(f"Failed to read manager-config file: {manager_path}", file=sys.stderr)
                 sys.exit(2)
             if read_files:
@@ -637,7 +651,8 @@ def main():
                 else:
                     ini_section_data = dict(common_data)
         except Exception as e:
-            if args.manager_config:
+            # If the manager path came from CLI or env, treat errors as fatal. For auto discovery, ignore and continue.
+            if manager_path_source in ('cli', 'env'):
                 print(f"Error reading manager-config: {e}", file=sys.stderr)
                 sys.exit(2)
 

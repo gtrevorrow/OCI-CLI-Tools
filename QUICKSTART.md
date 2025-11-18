@@ -134,16 +134,21 @@ WOCI manager config (auto-discovered): `~/.oci/woci_manager.ini` OR same directo
 
 Default auto-discovery filename: `woci_manager.ini`.
 
-Auto-discovery rules:
+Auto-discovery and precedence rules:
 1. Wrapper reads `--config-file` (or defaults to `~/.oci/config`).
 2. Looks for `woci_manager.ini` in the same directory.
 3. If not found there, looks for `~/.oci/woci_manager.ini`.
-4. Explicit `--manager-config` overrides auto-discovery entirely.
+4. If the environment variable `WOCI_MANAGER_CONFIG` is set, its path is used instead of any auto-discovered file.
+5. An explicit `--manager-config` CLI flag overrides both the environment variable and auto-discovery.
+
+Notes:
+- If `--manager-config` or `WOCI_MANAGER_CONFIG` is provided but the file cannot be read, the wrapper exits with a configuration error.
+- If only an auto-discovered file is present and it cannot be read, the wrapper ignores it and continues without manager-config.
 
 The manager INI supports a  `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `log_level`).
 If no profile section is selected or provided, a section literally named `[DEFAULT]` is used as the effective profile name (mirroring OCI behavior).
 
-Section name chosen using precedence documented in Profile Resolution Semantics. CLI flags override section values; manager config never overrides an explicitly supplied CLI flag.
+Section name is chosen using precedence documented in Profile Resolution Semantics. CLI flags override section values; manager config never overrides an explicitly supplied CLI flag.
 
 Sample `woci_manager.ini`:
 ```ini
@@ -336,3 +341,17 @@ Wrapper-only flags (not passed through to OCI; all other args are forwarded to t
 - `--refresh-token-passphrase-env <VAR>`: Env var containing passphrase to encrypt/decrypt the refresh token file.
 - `--refresh-token-passphrase-prompt`: Prompt for passphrase interactively.
 - `--log-level <LEVEL>`: `DEBUG|INFO|WARNING|ERROR` (default `INFO`).
+
+## Config sources & precedence (summary)
+
+| Setting type              | Sources (highest precedence first)                                                                                                         |
+|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| Manager config path       | `--manager-config` CLI flag → `WOCI_MANAGER_CONFIG` env var → auto-discovered `woci_manager.ini` → none                                    |
+| OCI config path           | `--config-file` CLI flag → default `~/.oci/config`                                                                                         |
+| Profile name              | `--profile-name` (or `profile_name` from manager config) → passthrough `--profile` → manager-config selected section name → error if none |
+| Other runtime settings    | CLI flags → manager-config section values (merged over `[COMMON]`) → hardcoded defaults (only for `config_file`)                          |
+| Manager-config read error | Fatal if path from CLI or env; ignored if from auto-discovery                                                                             |
+
+This table matches the behavior implemented in `oci_upst_session_manager.py` and should be used as the reference for how configuration is resolved at runtime.
+
+Additionally, if the selected manager-config section contains a `profile_name` key, that value is treated the same as supplying `--profile-name` on the CLI for determining the effective profile.
