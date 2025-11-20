@@ -522,7 +522,31 @@ def run_cmd_passthrough(cmd_args: list[str], profile_name: Optional[str]) -> int
 
 
 def main():
-    p = argparse.ArgumentParser(description="OCI UPST session manager: Authorization Code + Refresh Token + Token Exchange", allow_abbrev=False)
+    passthrough_help = (
+        "OCI CLI passthrough:\n"
+        "  • Any flags not listed above are forwarded to the underlying 'oci' command.\n"
+        "  • '--profile <name>' (OCI flag) continues to select the OCI config section but the wrapper also\n"
+        "    uses it when '--profile-name' is omitted. This means --profile influences both the wrapper\n"
+        "    (artifact paths) and the downstream OCI CLI in a consistent way.\n"
+        "  • '--config-file' (OCI flag) is honored by oci; the wrapper auto-discovers woci_manager.ini in\n"
+        "    the same directory unless '--manager-config' or 'WOCI_MANAGER_CONFIG' overrides it.\n"
+        "  • You do not need to add '--' before OCI arguments; woci parses its own options first and leaves\n"
+        "    the rest untouched.\n"
+        "General flow:\n"
+        "  woci [wrapper options] <oci service> <subcommand> [OCI options]\n"
+        "Example:\n"
+        "  woci --profile-name foo ce cluster generate-token --profile foo --cluster-id OCID --region us-ashburn-1\n"
+    )
+
+    p = argparse.ArgumentParser(
+        description="OCI UPST session manager: Authorization Code + Refresh Token + Token Exchange",
+        allow_abbrev=False,
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=passthrough_help,
+        add_help=False,
+    )
+    p.add_argument("-h", "--help", action="store_true", dest="wrapper_help", help="Show woci help and then display 'oci --help'")
+
     # Profile/OCI config
     p.add_argument("--profile-name", default=None, help="OCI profile name to create/update")
     p.add_argument("--region", default=None, help="OCI region, e.g., us-ashburn-1")
@@ -551,6 +575,17 @@ def main():
     p.add_argument("--manager-config-section", default=None, help="Section name inside manager INI to load (order: explicit, --profile-name, passthrough --profile, DEFAULT, first real section)")
 
     args, passthrough = p.parse_known_args()
+
+    if getattr(args, "wrapper_help", False):
+        p.print_help()
+        sys.stdout.flush()
+        print("\n--- OCI CLI help (oci --help) ---\n")
+        try:
+            import subprocess
+            subprocess.run(["oci", "--help"], check=False)
+        except FileNotFoundError:
+            print("oci executable not found on PATH; install OCI CLI to view its help.", file=sys.stderr)
+        sys.exit(0)
 
     # Extract --profile from passthrough if present (forms: --profile value OR --profile=value)
     # --------------------------------------------------------------------------------------
