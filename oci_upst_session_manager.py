@@ -618,19 +618,20 @@ def main():
         cp = configparser.ConfigParser()
         try:
             read_files = cp.read(manager_path)
-            # If the manager path came from CLI or env, treat it as explicit and error if unreadable
-            if not read_files and manager_path_source in ('cli', 'env'):
+            if not read_files and args.manager_config:
                 print(f"Failed to read manager-config file: {manager_path}", file=sys.stderr)
                 sys.exit(2)
             if read_files:
+                ini_defaults = {k: v for k, v in cp.defaults().items()}
+                common_data = dict(ini_defaults)
                 # Collect [COMMON] values (shared defaults for all sections)
                 if cp.has_section('COMMON'):
-                    common_data = {k: v for k, v in cp['COMMON'].items()}
+                    common_data.update({k: v for k, v in cp['COMMON'].items()})
                 # Section resolution order (mirror OCI default behavior when no profile):
                 # 1. Explicit --manager-config-section
                 # 2. Section named exactly as --profile-name
                 # 3. Section named exactly as passthrough --profile
-                # 4. Section named 'DEFAULT' (actual profile name)
+                # 4. '[DEFAULT]' stanza (configparser defaults)
                 # 5. First real section
                 if args.manager_config_section and args.manager_config_section in cp:
                     selected_section_name = args.manager_config_section
@@ -638,14 +639,14 @@ def main():
                     selected_section_name = args.profile_name
                 elif (not args.profile_name and cli_profile and cli_profile in cp):
                     selected_section_name = cli_profile
-                elif cp.has_section('DEFAULT'):
+                elif ini_defaults:
                     selected_section_name = 'DEFAULT'
                 else:
                     real_sections = [s for s in cp.sections() if s != 'COMMON']
                     if real_sections:
                         selected_section_name = real_sections[0]
                 # Merge: [COMMON] base + selected section overrides
-                if selected_section_name and cp.has_section(selected_section_name):
+                if selected_section_name and selected_section_name != 'DEFAULT' and selected_section_name in cp:
                     ini_section_data = dict(common_data)
                     ini_section_data.update({k: v for k, v in cp[selected_section_name].items()})
                 else:

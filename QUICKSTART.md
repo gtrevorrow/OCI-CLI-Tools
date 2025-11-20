@@ -71,7 +71,7 @@ Expected files (minimal checklist):
 - `oci_session_wrapper.py` (CLI wrapper for oci session authenticate/refresh)
 - `requirements.txt` (deps)
 - `install.sh` (Option 3 installer)
-- `woci-manager.ini` (sample manager config)
+- `woci_manager.ini` (sample manager config)
 - `pyproject.toml` (Option 4 pipx install)
 - `QUICKSTART.md`, `LICENSE`
 
@@ -279,7 +279,8 @@ Example user exec block that references the woci-manager.ini config file and pro
          - --profile
          - myProfile
          - --manager-config
-         - /Users/foo/Documents/projects/token-exchange/woci-manager.ini
+-        - /Users/foo/Documents/projects/token-exchange/woci-manager.ini
++        - /Users/foo/Documents/projects/token-exchange/woci_manager.ini
        command: woci
 ```
 First call triggers interactive login; subsequent calls refresh silently.
@@ -329,6 +330,7 @@ For feature requests (OIDC discovery, configurable callback path, non-browser de
 
 Wrapper-only flags (not passed through to OCI; all other args are forwarded to the `oci` CLI unchanged):
 - `--manager-config <path>`: Path to woci manager INI. If omitted, auto-discovery applies (see Configuration Files).
++  Use `woci_manager.ini` (underscore) if you rely on auto-discovery; other filenames require `--manager-config` or `WOCI_MANAGER_CONFIG`.
 - `--manager-config-section <name>`: Section name inside the manager INI to load.
 - `--profile-name <name>`: Profile name the wrapper manages (artifacts under `~/.oci/sessions/<name>`; OCI config updated for this profile). Passthrough `--profile` is still forwarded to OCI.
 - `--authz-base-url <url>`: Full authorization endpoint URL used for Authorization Code flow with PKCE.
