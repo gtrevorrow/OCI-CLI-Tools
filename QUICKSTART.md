@@ -9,12 +9,12 @@ Wraps the OCI CLI to transparently obtain and refresh an OCI session token (UPST
 ## Sequence Diagrams
 
 ### Initial Authentication Flow
-This diagram shows the workflow when no valid session token or refresh token exists (first-time use or after tokens expire):
+This sequence diagram illustrates how the session manager obtains an OCI session token when no valid session token or refresh token exists (first-time use or after tokens expire):
 
 ![Initial Authentication](diagram.svg)
 
 ### Token Refresh Flow
-This diagram shows the silent refresh workflow when the UPST is expired but a valid refresh token exists:
+This diagram shows the silent refresh flow when the UPST is expired but a valid refresh token exists:
 
 ![Token Refresh](diagram-refresh.svg)
 
@@ -22,9 +22,9 @@ This diagram shows the silent refresh workflow when the UPST is expired but a va
 
 Before installing the wrapper, ensure you have:
 
-### OCI Workload Identity Federation Configuration
-- **Trust relationship configured**: OCI Workload Identity Federation must be set up to establish trust between your OIDC Provider (e.g., Okta) and an OCI IAM domain.
-- **User exists in the domain**: Your user account must exist in the OCI IAM domain that trusts the authorization server.
+### OCI Workload Identity Federation Configuration [🔗](https://docs.oracle.com/en-us/iaas/Content/Identity/federation/workload-identity-federation.htm)
+- **Trust relationship configured**: OCI Workload Identity Federation (WIF) must be set up to establish trust between your OIDC Provider (e.g., Okta) and an OCI IAM domain.
+- **User exists in the domain**: Your user account must exist in the OCI IAM domain where you configured the WIF trust. 
 See [OCI Workload Identity Federation documentation](https://docs.oracle.com/en-us/iaas/Content/Identity/federation/workload-identity-federation.htm) for detailed setup steps.
 
 ### OIDC Client Registrations:
@@ -34,13 +34,13 @@ See [OCI Workload Identity Federation documentation](https://docs.oracle.com/en-
     - Redirect URI `http://127.0.0.1:8181/callback` (or your chosen port) registered
   
 ### Runtime Requirements
-- Python 3.9+ (Options 1 and 2). Option 3 creates its own virtualenv.
+- Python 3.9+ 
 - OCI CLI installed and on PATH (`oci` command available)
 
 ## Get the code (GitHub)
 Choose one of the following ways to fetch the sources from the GitHub repo:
 
-- Git clone (recommended; gets the branch):
+- Git clone:
 ```bash
 git clone https://github.com/gtrevorrow/OCI-CLI-Tools.git
 cd OCI-CLI-Tools
@@ -68,17 +68,16 @@ This URL ends with the commit SHA, so you always download that exact revision re
 
 Expected files (minimal checklist):
 - `oci_upst_session_manager.py` (main tool)
-- `oci_session_wrapper.py` (CLI wrapper for oci session authenticate/refresh)
 - `requirements.txt` (deps)
-- `install.sh` (Option 3 installer)
+- `install.sh` (Option 1 installer)
 - `woci_manager.ini` (sample manager config)
-- `pyproject.toml` (Option 4 pipx install)
+- `pyproject.toml` (pipx install)
 - `QUICKSTART.md`, `LICENSE`
 
 ## Install
 
-Prerequisites:
-- Python 3.9+ (Options 2 and 3). Option 1 creates its own virtualenv.
+Prerequisites (again):
+- Python 3.9+ 
 - OCI CLI installed (`oci` on PATH)
 
 ### Option 1: Self-contained installer script (recommended)
@@ -98,9 +97,8 @@ If `~/.local/bin` is not on your PATH (bash):
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bash_profile
 source ~/.bash_profile
 ```
-Notes:
-- Option 1 installs dependencies automatically from `requirements.txt` (no manual `pip install` needed).
-- The launcher name is `oci-upst-session-manager`; adding the `woci` alias keeps examples below consistent.
+Note:
+The launcher name is `oci-upst-session-manager`; adding the `woci` alias is for convenience.
 
 ### Option 2: Symlink directly to the script (simple, uses system Python)
 Install Python dependencies into the interpreter that will run the script:
@@ -124,29 +122,28 @@ python oci_upst_session_manager.py --help
 # Optional global shim
 ln -sf "$(pwd)/oci_upst_session_manager.py" /usr/local/bin/woci
 ```
-Deactivate later with `deactivate`.
+
 
 ## Configuration Files
 
-OCI CLI config (standard): `~/.oci/config`
+#### OCI CLI config (standard):  e.g.  `~/.oci/config`
 
-WOCI manager config (auto-discovered): `~/.oci/woci_manager.ini` OR same directory as any `--config-file` you pass.
+#### WOCI manager config. Auto-discovered OR specified via the `--config-file` option.
 
 Default auto-discovery filename: `woci_manager.ini`.
 
 Auto-discovery and precedence rules:
-1. Wrapper reads `--config-file` (or defaults to `~/.oci/config`).
-2. Looks for `woci_manager.ini` in the same directory.
+1. Wrapper reads the OCI config file specified via the `--config-file` option (default `~/.oci/config`).
+2. Looks for `woci_manager.ini` in the same directory as that OCI config file.
 3. If not found there, looks for `~/.oci/woci_manager.ini`.
 4. If the environment variable `WOCI_MANAGER_CONFIG` is set, its path is used instead of any auto-discovered file.
 5. An explicit `--manager-config` CLI flag overrides both the environment variable and auto-discovery.
-
 Notes:
 - If `--manager-config` or `WOCI_MANAGER_CONFIG` is provided but the file cannot be read, the wrapper exits with a configuration error.
 - If only an auto-discovered file is present and it cannot be read, the wrapper ignores it and continues without manager-config.
 
-The manager INI supports a  `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `log_level`).
-If no profile section is selected or provided, a section literally named `[DEFAULT]` is used as the effective profile name (mirroring OCI behavior).
+The manager INI supports a `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `log_level`).
+If you do not supply a profile, the wrapper now falls back to the OCI-style `DEFAULT` profile name (artifacts land in `~/.oci/sessions/DEFAULT/`). You can still pick an explicit profile via OCI passthrough `--profile` or by selecting a named manager-config section (that section name becomes the profile). `[COMMON]` only contributes shared values; it never selects the profile.
 
 Section name is chosen using precedence documented in Profile Resolution Semantics. CLI flags override section values; manager config never overrides an explicitly supplied CLI flag.
 
@@ -167,16 +164,17 @@ scope = openid offline_access
 ```
 
 Token exchange endpoint guidance:
-- If the same token endpoint supports RFC 8693 token exchange, omit `token_exchange_url`.
-- If OCI IAM uses a distinct host/endpoint for exchange, set `token_exchange_url` explicitly.
+- If the Authorization Code/refresh flow runs against the OCI IAM domain that also provides the RFC 8693 exchange, leave `token_exchange_url` unset; the tool reuses `token_url` for both refresh and exchange.
+- If you do Authorization Code/refresh at another OIDC provider and then exchange at OCI IAM’s fixed exchange endpoint, set `token_exchange_url` to that OCI IAM endpoint explicitly.
 
 ## Profile Resolution Semantics
-Effective profile name (used for OCI profile and session artifact paths) is chosen by precedence:
-1. `--profile-name` (wrapper flag)
-2. Passthrough `--profile` (OCI CLI flag in the remaining args)
-3. Selected manager config section name (see below)
-   - Section resolution order: explicit `--manager-config-section`, section matching `--profile-name`, section matching passthrough `--profile`, section named `DEFAULT` (mirrors OCI), otherwise first real section.
-4. Failure: exit with error if no profile determined.
+The effective profile governs both the manager metadata and the session artifacts (and is also forwarded to OCI if you did not set `--profile` in the passthrough args).
+
+Rules:
+- All profile selectors must agree. The following sources must resolve to the same value: passthrough `--profile` (OCI) and `--manager-config-section` (if provided). If they differ, the wrapper exits with code 2 and explains the conflict.
+- If no profile is determined from those sources, the wrapper falls back to the OCI-style `DEFAULT` profile name (artifacts under `~/.oci/sessions/DEFAULT/`).
+- `[COMMON]` supplies shared values. The manager INI `[DEFAULT]` section is not used for profile selection; put shared values in `[COMMON]` instead.
+- To reuse the same metadata across multiple profiles, duplicate the section or place shared keys in `[COMMON]`; the wrapper no longer supports mixing metadata from one profile with artifacts for another.
 
 Artifacts stored under: `~/.oci/sessions/<profile>/`:
 - `token` (UPST)
@@ -234,7 +232,7 @@ Subsequent runs:
 Interactive cluster token generation:
 ```bash
 woci \
-  --profile-name myprofile \
+  --profile myprofile \
   --authz-base-url https://idcs-tenant.identity.oraclecloud.com/oauth2/v1/authorize \
   --token-url https://idcs-tenant.identity.oraclecloud.com/oauth2/v1/token \
   --client-id YOUR_CLIENT_ID \
@@ -288,7 +286,7 @@ First call triggers interactive login; subsequent calls refresh silently.
 ## Troubleshooting
 - Browser not opening: copy logged Auth URL manually; on macOS the script attempts `open` fallback.
 - "Missing required options": ensure values present via CLI or config section.
-- "Could not determine profile name": provide `--profile-name` or `--profile` or add a named section.
+- "Could not determine profile name": provide `--profile` or add a named section.
 - Token not refreshing: check presence/permissions of `~/.oci/sessions/<profile>/refresh_token`.
 - Encrypted refresh token but no passphrase supplied: provide env var or prompt flag.
 - Encrypted refresh token error: supply passphrase again (env or prompt) to unlock.
@@ -330,9 +328,8 @@ For feature requests (OIDC discovery, configurable callback path, non-browser de
 
 Wrapper-only flags (not passed through to OCI; all other args are forwarded to the `oci` CLI unchanged):
 - `--manager-config <path>`: Path to woci manager INI. If omitted, auto-discovery applies (see Configuration Files).
-+  Use `woci_manager.ini` (underscore) if you rely on auto-discovery; other filenames require `--manager-config` or `WOCI_MANAGER_CONFIG`.
-- `--manager-config-section <name>`: Section name inside the manager INI to load.
-- `--profile-name <name>`: Profile name the wrapper manages (artifacts under `~/.oci/sessions/<name>`; OCI config updated for this profile). Passthrough `--profile` is still forwarded to OCI.
+-  Use `woci_manager.ini` (underscore) if you rely on auto-discovery; other filenames require `--manager-config` or `WOCI_MANAGER_CONFIG`.
+- `--manager-config-section <name>`: Section name inside the manager INI to load. It must correspond to the same profile you run under; use `[COMMON]` or duplicate sections if you need shared metadata across profiles.
 - `--authz-base-url <url>`: Full authorization endpoint URL used for Authorization Code flow with PKCE.
 - `--token-url <url>`: OAuth2 token endpoint for authz code and refresh grants.
 - `--auth-client-id <id>` / `--auth-client-secret <secret>`: OAuth/OIDC client credentials used to perform the Authorization Code + Refresh Token grants against your identity provider.
@@ -350,10 +347,10 @@ Wrapper-only flags (not passed through to OCI; all other args are forwarded to t
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
 | Manager config path       | `--manager-config` CLI flag → `WOCI_MANAGER_CONFIG` env var → auto-discovered `woci_manager.ini` → none                                    |
 | OCI config path           | `--config-file` CLI flag → default `~/.oci/config`                                                                                         |
-| Profile name              | `--profile-name` (or `profile_name` from manager config) → passthrough `--profile` → manager-config selected section name → error if none |
+| Profile name              | `--profile` (OCI) or manager-config section name; sources must match → error if they differ or none provided |
 | Other runtime settings    | CLI flags → manager-config section values (merged over `[COMMON]`) → hardcoded defaults (only for `config_file`)                          |
 | Manager-config read error | Fatal if path from CLI or env; ignored if from auto-discovery                                                                             |
 
 This table matches the behavior implemented in `oci_upst_session_manager.py` and should be used as the reference for how configuration is resolved at runtime.
 
-Additionally, if the selected manager-config section contains a `profile_name` key, that value is treated the same as supplying `--profile-name` on the CLI for determining the effective profile.
+If the selected manager-config section contains a `profile_name` key, it is ignored; use the section name as the profile.

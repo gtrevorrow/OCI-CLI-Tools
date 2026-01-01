@@ -47,10 +47,10 @@ SESSION_DIRNAME = "sessions"
 SESSION_TOKEN_FILENAME = "token"
 SESSION_KEY_FILENAME = "private_key.pem"
 SESSION_REFRESH_TOKEN_FILENAME = "refresh_token"
-SESSION_ROOT = os.path.join(os.path.expanduser(os.path.join(f"~/{OCI_DIRNAME}",SESSION_DIRNAME)))
+SESSION_ROOT = os.path.expanduser(os.path.join(f"~/{OCI_DIRNAME}",SESSION_DIRNAME))
 # Always use 2048-bit RSA keys
 RSA_KEY_BITS = 2048
-# KDF iterations for refresh token encryption (constant)
+# KDF iterations for refresh token encryption (constant). Increase to increase CPU cost for attackers 
 REFRESH_TOKEN_KDF_ITERATIONS = 200_000
 # Default manager config filename for auto-discovery
 MANAGER_DEFAULT_FILENAME = "woci_manager.ini"
@@ -343,14 +343,14 @@ def update_oci_config(config_file: str, profile_name: str, region: Optional[str]
         with open(config_file, "r", encoding="utf-8") as f:
             lines = f.read().splitlines()
 
-    def set_kv(section: str, key: str, value: Optional[str]):
-        nonlocal lines
-        out = []
+    def set_kv(lines_in: list[str], section: str, key: str, value: Optional[str]) -> list[str]:
+        out: list[str] = []
         in_sec = False
         found_sec = False
         set_key = False
-        for ln in lines:
+        for ln in lines_in:
             if ln.strip().startswith("[") and ln.strip().endswith("]"):
+                # Leaving the target section: append missing key before the new section header
                 if in_sec and not set_key and value is not None:
                     out.append(f"{key}={value}")
                 in_sec = (ln.strip() == f"[{section}]")
@@ -363,6 +363,10 @@ def update_oci_config(config_file: str, profile_name: str, region: Optional[str]
                 set_key = True
             else:
                 out.append(ln)
+        # Handle end-of-file when still inside the target section
+        if in_sec and not set_key and value is not None:
+            out.append(f"{key}={value}")
+        #Handle EOF when the target section does not exist in the file 
         if not found_sec:
             out.append(f"[{section}]")
             # On first creation, write what we know; region is optional.
@@ -373,15 +377,12 @@ def update_oci_config(config_file: str, profile_name: str, region: Optional[str]
             # Also add the current key if provided and not one of the above
             if value is not None and key not in ("region", "key_file", "security_token_file"):
                 out.append(f"{key}={value}")
-        else:
-            if not set_key and value is not None:
-                out.append(f"{key}={value}")
-        lines = out
+        return out
 
     # ensure base keys exist
-    set_kv(profile_name, "region", region)
-    set_kv(profile_name, "key_file", key_file)
-    set_kv(profile_name, "security_token_file", token_file)
+    lines = set_kv(lines, profile_name, "region", region)
+    lines = set_kv(lines, profile_name, "key_file", key_file)
+    lines = set_kv(lines, profile_name, "security_token_file", token_file)
 
     with open(config_file, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
@@ -525,9 +526,7 @@ def main():
     passthrough_help = (
         "OCI CLI passthrough:\n"
         "  • Any flags not listed above are forwarded to the underlying 'oci' command.\n"
-        "  • '--profile <name>' (OCI flag) continues to select the OCI config section but the wrapper also\n"
-        "    uses it when '--profile-name' is omitted. This means --profile influences both the wrapper\n"
-        "    (artifact paths) and the downstream OCI CLI in a consistent way.\n"
+        "  • '--profile <name>' (OCI flag) is the canonical profile selector for both the wrapper and OCI.\n"
         "  • '--config-file' (OCI flag) is honored by oci; the wrapper auto-discovers woci_manager.ini in\n"
         "    the same directory unless '--manager-config' or 'WOCI_MANAGER_CONFIG' overrides it.\n"
         "  • You do not need to add '--' before OCI arguments; woci parses its own options first and leaves\n"
@@ -535,7 +534,7 @@ def main():
         "General flow:\n"
         "  woci [wrapper options] <oci service> <subcommand> [OCI options]\n"
         "Example:\n"
-        "  woci --profile-name foo ce cluster generate-token --profile foo --cluster-id OCID --region us-ashburn-1\n"
+        "  woci --profile foo ce cluster generate-token --cluster-id OCID --region us-ashburn-1\n"
     )
 
     p = argparse.ArgumentParser(
@@ -548,7 +547,7 @@ def main():
     p.add_argument("-h", "--help", action="store_true", dest="wrapper_help", help="Show woci help and then display 'oci --help'")
 
     # Profile/OCI config
-    p.add_argument("--profile-name", default=None, help="OCI profile name to create/update")
+    # profile-name removed; passthrough --profile is the sole selector
     p.add_argument("--region", default=None, help="OCI region, e.g., us-ashburn-1")
     p.add_argument("--config-file", default=None, help="Path to OCI config (default: ~/.oci/config)")
     # OAuth/AuthZ
@@ -572,7 +571,7 @@ def main():
     # removed --refresh-token-kdf-iterations; use constant REFRESH_TOKEN_KDF_ITERATIONS
     # Manager config file (INI)
     p.add_argument("--manager-config", default=None, help="Path to optional INI config file (OCI style). If omitted, the wrapper will look for '" + MANAGER_DEFAULT_FILENAME + "' beside the OCI --config-file (or in ~/.oci when --config-file not supplied). CLI flags override values from this file.")
-    p.add_argument("--manager-config-section", default=None, help="Section name inside manager INI to load (order: explicit, --profile-name, passthrough --profile, DEFAULT, first real section)")
+    p.add_argument("--manager-config-section", default=None, help="Section name inside manager INI to load; must correspond to the effective profile when provided.")
 
     args, passthrough = p.parse_known_args()
 
@@ -594,13 +593,13 @@ def main():
     #   - The OCI config profile section to read/update (key_file, security_token_file, region)
     #   - The session artifacts folder: ~/.oci/sessions/<profile>/
     #   - Refresh token encryption / storage path
-    # Precedence order (highest first):
-    #   1. --profile-name (wrapper-specific flag)
-    #   2. Passthrough --profile (OCI CLI flag captured from remaining args)
-    #   3. Selected manager-config section name (explicit --manager-config-section OR auto-picked)
-    #      Section selection order: explicit, --profile-name, passthrough --profile, section named DEFAULT, first real section.
-    # Failure mode:
-    #   If after precedence evaluation no profile is determined, the wrapper exits with a clear error.
+    # Unified source of truth:
+    #   - Passthrough --profile is the canonical selector. If a manager-config section is explicitly chosen
+    #     (or auto-selected), it must match the passthrough profile when provided. Conflicts are fatal.
+    # Profile determination:
+    #   1. Collect candidates from passthrough --profile and the selected manager-config section name.
+    #   2. If multiple distinct values are present, exit with configuration error.
+    #   3. If none are present, exit with configuration error.
     # Manager Config Auto-Discovery:
     #   If --manager-config is omitted, we look for a file named `woci_manager.ini` in the same directory
     #   as the resolved OCI --config-file (or ~/.oci by default). If found, it is loaded.
@@ -624,7 +623,7 @@ def main():
 
     ini_section_data = {}
     auto_manager_path = None
-    selected_section_name = None  # record chosen section for fallback profile resolution
+    selected_section_name = None  # record chosen section for metadata
     # Auto-discover manager config if not explicitly provided
     if not args.manager_config:
         # Determine base directory from --config-file or default ~/.oci
@@ -657,35 +656,30 @@ def main():
                 print(f"Failed to read manager-config file: {manager_path}", file=sys.stderr)
                 sys.exit(2)
             if read_files:
-                ini_defaults = {k: v for k, v in cp.defaults().items()}
-                common_data = dict(ini_defaults)
                 # Collect [COMMON] values (shared defaults for all sections)
                 if cp.has_section('COMMON'):
                     common_data.update({k: v for k, v in cp['COMMON'].items()})
-                # Section resolution order (mirror OCI default behavior when no profile):
-                # 1. Explicit --manager-config-section
-                # 2. Section named exactly as --profile-name
-                # 3. Section named exactly as passthrough --profile
-                # 4. '[DEFAULT]' stanza (configparser defaults)
-                # 5. First real section
-                if args.manager_config_section and args.manager_config_section in cp:
-                    selected_section_name = args.manager_config_section
-                elif args.profile_name and args.profile_name in cp:
-                    selected_section_name = args.profile_name
-                elif (not args.profile_name and cli_profile and cli_profile in cp):
-                    selected_section_name = cli_profile
-                elif ini_defaults:
-                    selected_section_name = 'DEFAULT'
+
+                # Section resolution
+                if args.manager_config_section:
+                    if cp.has_section(args.manager_config_section):
+                        selected_section_name = args.manager_config_section
+                    else:
+                        print(f"manager-config section '{args.manager_config_section}' not found in {manager_path}", file=sys.stderr)
+                        sys.exit(2)
                 else:
-                    real_sections = [s for s in cp.sections() if s != 'COMMON']
-                    if real_sections:
-                        selected_section_name = real_sections[0]
-                # Merge: [COMMON] base + selected section overrides
-                if selected_section_name and selected_section_name != 'DEFAULT' and selected_section_name in cp:
-                    ini_section_data = dict(common_data)
+                    preferred = cli_profile
+                    if preferred and cp.has_section(preferred):
+                        selected_section_name = preferred
+                    else:
+                        real_sections = [s for s in cp.sections() if s != 'COMMON']
+                        if real_sections:
+                            selected_section_name = real_sections[0]
+
+                # Merge: [COMMON] base + selected section overrides (if present)
+                ini_section_data = dict(common_data)
+                if selected_section_name and selected_section_name in cp:
                     ini_section_data.update({k: v for k, v in cp[selected_section_name].items()})
-                else:
-                    ini_section_data = dict(common_data)
         except Exception as e:
             # If the manager path came from CLI or env, treat errors as fatal. For auto discovery, ignore and continue.
             if manager_path_source in ('cli', 'env'):
@@ -704,8 +698,25 @@ def main():
             return cast(ini_section_data[name]) if cast else ini_section_data[name]
         return DEFAULTS.get(name)
 
+    # Profile consistency enforcement (only passthrough --profile and section name)
+    profile_candidates = []
+    if cli_profile:
+        profile_candidates.append(("--profile", cli_profile))
+    if selected_section_name and selected_section_name not in ("COMMON",):
+        profile_candidates.append(("manager-config section", selected_section_name))
+
+    unique_profiles = {val for _, val in profile_candidates}
+    if len(unique_profiles) > 1:
+        details = ", ".join(f"{src}={val}" for src, val in profile_candidates)
+        print(f"Conflicting profile inputs: {details}. Ensure all profile selectors match.", file=sys.stderr)
+        sys.exit(2)
+    if unique_profiles:
+        args.profile_name = unique_profiles.pop()
+    else:
+        # Fall back to OCI-style DEFAULT profile when nothing was specified
+        args.profile_name = "DEFAULT"
+
     # Merge values
-    args.profile_name = pick("profile_name", args.profile_name)
     args.region = pick("region", args.region)
     args.config_file = pick("config_file", args.config_file)
     args.authz_base_url = pick("authz_base_url", args.authz_base_url)
@@ -721,17 +732,6 @@ def main():
     args.token_exchange_url = pick("token_exchange_url", args.token_exchange_url)
     args.log_level = pick("log_level", args.log_level)
 
-    # Resolve effective profile name precedence: --profile-name > passthrough --profile > selected section name
-    if not args.profile_name:
-        if cli_profile:
-            args.profile_name = cli_profile
-        elif selected_section_name:
-            args.profile_name = selected_section_name
-
-    if not args.profile_name:
-        print("Could not determine profile name: supply --profile-name, --profile, or ensure manager config has a named section (e.g., DEFAULT).", file=sys.stderr)
-        sys.exit(2)
-
     # Encryption flags
     ini_prompt = ini_section_data.get("refresh_token_passphrase_prompt", "false").lower() == "true"
     args.refresh_token_passphrase_prompt = bool(args.refresh_token_passphrase_prompt) or ini_prompt
@@ -741,7 +741,7 @@ def main():
     # Required args check (expanded): require redirect_port to avoid unregistered redirect issues
     missing = [k for k in ["authz_base_url", "token_url", "auth_client_id", "client_id", "client_secret", "scope", "redirect_port"] if getattr(args, k) in (None, "")]
     if missing:
-        print(f"Missing required options: {', '.join(missing)}. Provide via CLI or manager-config [DEFAULT]/section.", file=sys.stderr)
+        print(f"Missing required options: {', '.join(missing)}. Provide via CLI or manager-config section (with optional [COMMON] shared values).", file=sys.stderr)
         sys.exit(2)
 
     # Validation of URL shape (must look like http/https)

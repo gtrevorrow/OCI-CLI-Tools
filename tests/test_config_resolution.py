@@ -43,7 +43,7 @@ def test_manager_config_path_precedence_cli_over_env(tmp_path, monkeypatch):
             monkeypatch,
             [
                 "--manager-config", str(cli_ini),
-                "--profile-name", "p",
+                "--profile", "p",
                 "--authz-base-url", "https://example.com/auth",
                 "--token-url", "https://example.com/token",
                 "--auth-client-id", "ac",
@@ -71,7 +71,7 @@ def test_manager_config_env_used_when_cli_missing(tmp_path, monkeypatch):
         code = _run_main_with_args(
             monkeypatch,
             [
-                "--profile-name", "p",
+                "--profile", "p",
                 "--authz-base-url", "https://example.com/auth",
                 "--token-url", "https://example.com/token",
                 "--auth-client-id", "ac",
@@ -97,7 +97,7 @@ def test_explicit_manager_config_unreadable_is_fatal(tmp_path, monkeypatch):
         monkeypatch,
         [
             "--manager-config", str(bad_path),
-            "--profile-name", "p",
+            "--profile", "p",
             "--authz-base-url", "https://example.com/auth",
             "--token-url", "https://example.com/token",
             "--auth-client-id", "ac",
@@ -112,26 +112,50 @@ def test_explicit_manager_config_unreadable_is_fatal(tmp_path, monkeypatch):
     assert code == 2
 
 
-# Test intent: verify profile-name precedence. Even if the manager-config
-# section and passthrough --profile are present, an explicit --profile-name
-# on the wrapper must win.
-def test_profile_name_precedence_cli_over_passthrough_and_section(tmp_path, monkeypatch):
+# Test intent: conflicting profile selectors (passthrough --profile vs manager-config section)
+# must fail fast with code 2.
+def test_conflicting_profile_inputs_exit_with_error(tmp_path, monkeypatch):
     ini = tmp_path / "cfg.ini"
-    ini.write_text("""[COMMON]\nlog_level=INFO\n[mysection]\nprofile_name=from_ini\n""", encoding="utf-8")
+    ini.write_text("""[COMMON]\nlog_level=INFO\n[mysection]\nauthz_base_url=https://example.com/auth\n""", encoding="utf-8")
 
     argv = [
         "woci",
         "--manager-config", str(ini),
         "--manager-config-section", "mysection",
-        "--profile-name", "cli-prof",
-        "--authz-base-url", "https://example.com/auth",
         "--token-url", "https://example.com/token",
         "--auth-client-id", "ac",
         "--client-id", "cid",
         "--client-secret", "csec",
         "--scope", "openid",
         "--redirect-port", "8181",
-        "--profile", "passthrough-prof",
+        "--profile", "different-prof",
+    ]
+
+    monkeypatch.setattr("sys.argv", argv)
+    monkeypatch.setattr(mgr, "ensure_session", lambda *a, **k: None)
+
+    with pytest.raises(SystemExit) as exc:
+        mgr.main()
+
+    assert exc.value.code == 2
+
+
+# Test intent: manager-config-section alone determines both the metadata source
+# and the effective profile when no passthrough profile is provided.
+def test_manager_config_section_sets_profile_when_alone(tmp_path, monkeypatch):
+    ini = tmp_path / "cfg.ini"
+    ini.write_text("""[COMMON]\nlog_level=INFO\n[sectionA]\nauthz_base_url=https://example.com/auth\n""", encoding="utf-8")
+
+    argv = [
+        "woci",
+        "--manager-config", str(ini),
+        "--manager-config-section", "sectionA",
+        "--token-url", "https://example.com/token",
+        "--auth-client-id", "ac",
+        "--client-id", "cid",
+        "--client-secret", "csec",
+        "--scope", "openid",
+        "--redirect-port", "8181",
     ]
 
     monkeypatch.setattr("sys.argv", argv)
@@ -145,10 +169,10 @@ def test_profile_name_precedence_cli_over_passthrough_and_section(tmp_path, monk
     with pytest.raises(SystemExit):
         mgr.main()
 
-    assert captured["profile_name"] == "cli-prof"
+    assert captured["profile_name"] == "sectionA"
 
 
-# Test intent: when neither --profile-name nor profile_name in INI are set,
+# Test intent: when no section is selected and no profile_name exists,
 # the effective profile should fall back to the passthrough --profile value.
 def test_profile_name_falls_back_to_passthrough_when_no_cli_or_ini(tmp_path, monkeypatch):
     ini = tmp_path / "cfg.ini"
@@ -184,7 +208,7 @@ def test_profile_name_falls_back_to_passthrough_when_no_cli_or_ini(tmp_path, mon
 # Test intent: if no profile can be resolved from CLI flags, passthrough
 # --profile, or manager-config, main() must exit with code 2 and a clear
 # error about the missing profile.
-def test_missing_profile_name_causes_error(monkeypatch):
+def test_missing_profile_name_defaults_to_DEFAULT(monkeypatch):
     argv = [
         "woci",
         "--authz-base-url", "https://example.com/auth",
@@ -197,9 +221,15 @@ def test_missing_profile_name_causes_error(monkeypatch):
     ]
 
     monkeypatch.setattr("sys.argv", argv)
-    monkeypatch.setattr(mgr, "ensure_session", lambda *a, **k: None)
+    captured = {}
+
+    def fake_ensure_session(args, *a, **k):
+        captured["profile_name"] = args.profile_name
+
+    monkeypatch.setattr(mgr, "ensure_session", fake_ensure_session)
 
     with pytest.raises(SystemExit) as exc:
         mgr.main()
 
-    assert exc.value.code == 2
+    assert exc.value.code == 0
+    assert captured["profile_name"] == "DEFAULT"
