@@ -19,6 +19,7 @@ dependencies = [
 dev = [
   "python-semantic-release>=9.8.0",
   "build>=1.2.1",
+  "commitizen>=3.27.0",
 ]
 
 [project.urls]
@@ -39,4 +40,11 @@ tag_format = "v{version}"
 upload_to_pypi = false
 upload_to_release = true
 build_command = "python -m build"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "v$version"
+version_files = ["pyproject.toml:version ="]
+update_changelog_on_bump = false
 
