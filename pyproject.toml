@@ -15,6 +15,12 @@ dependencies = [
   "cryptography>=41.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "python-semantic-release>=9.8.0",
+  "build>=1.2.1",
+]
+
 [project.urls]
 Homepage = "https://example.com/woci"
 
@@ -22,4 +28,15 @@ Homepage = "https://example.com/woci"
 # Provide convenient CLI names for pipx installs
 woci = "oci_upst_session_manager:main"
 woci-session-manager = "oci_upst_session_manager:main"
+
+[tool.semantic_release]
+# Use git tags as the source of truth for the version and keep pyproject.toml in sync.
+version_source = "tag"
+branch = "main"
+version_toml = ["pyproject.toml:project.version"]
+changelog_file = "CHANGELOG.md"
+tag_format = "v{version}"
+upload_to_pypi = false
+upload_to_release = true
+build_command = "python -m build"
 
