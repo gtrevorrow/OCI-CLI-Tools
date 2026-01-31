@@ -31,6 +31,7 @@ See [OCI Workload Identity Federation documentation](https://docs.oracle.com/en-
 ### OIDC Client Registrations:
 - **OAuth client registered**: An OAuth 2.0 client  must be registered in your OIDC Provider with:
     - Authorization Code grant type enabled
+    - **PKCE** (Proof Key for Code Exchange) enabled/required (S256 challenge method)
     - Refresh Token grant type enabled (offline_access scope)
     - Redirect URI `http://127.0.0.1:8181/callback` (or your chosen port) registered
   
