@@ -1,5 +1,8 @@
 # OCI UPST Session Manager (WOCI)
 
+> [!NOTE]
+> **About the `woci` command**: Throughout this documentation, `woci` is used as a convenient example alias for the `oci_upst_session_manager.py` script. This is not a binary name; you can define your own alias (e.g. `alias woci='python3 /path/to/oci_upst_session_manager.py'`) or invoke the script directly.
+
 This repository contains a small wrapper around the OCI CLI that transparently manages **OCI User Principal Session Tokens (UPSTs)** using OAuth/OIDC and OCI Workload Identity Federation.
 
 Instead of manually running `oci session authenticate` on a schedule, you:
@@ -72,9 +75,7 @@ At a high level, the tool enables this flow:
 By using an **OIDC refresh token** as the durable credential and treating the OCI UPST as a short-lived, derived session token, you get:
 
 - **Fine-grained control over OCI session lifetime**:
-  - The effective life of a user’s OCI session is bounded by the **shorter** of:
-    - The UPST TTL (e.g. 60 minutes), and
-    - The **refresh token TTL** configured in your identity provider.
+  - The effective life of a user’s OCI session is bounded by the **refresh token TTL** configured in your identity provider.
   - You can centrally control how long a human can continue to obtain new UPSTs without re-authenticating by adjusting the refresh token TTL and policies.
 
 - **Minimized re-authentication friction**:
@@ -89,7 +90,7 @@ By using an **OIDC refresh token** as the durable credential and treating the OC
 
 ## Token model used by the wrapper
 
-The wrapper distinguishes between three different token types and uses each for its intended purpose:
+The wrapper distinguishes between four different token types and uses each for its intended purpose:
 
 1. **ID token (OIDC)**
    - Proves that a user authenticated to your client (RP).
