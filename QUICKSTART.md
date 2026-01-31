@@ -5,6 +5,7 @@ Wraps the OCI CLI to transparently obtain and refresh an OCI session token (UPST
 1. OAuth 2.0 Authorization Code + PKCE (interactive, first use)
 2. Refresh Token grant (silent renew of access token)
 3. OCI Workload Identity Federation token exchange (RFC 8693 profile with OCI-specific extensions)
+4. Optional background auto-refresh to renew the UPST before expiry for long-running commands
 
 ## Sequence Diagrams
 
@@ -152,6 +153,8 @@ Sample `woci_manager.ini`:
 [COMMON]
 redirect_port = 8181
 log_level = INFO
+auto_refresh = true
+refresh_safety_window = 600
 
 [myprofile]
 authz_base_url = https://idcs-tenant.identity.oraclecloud.com/oauth2/v1/authorize
@@ -226,6 +229,16 @@ Subsequent runs:
 - If UPST still valid (>60s remaining) => reuse.
 - Else if refresh token exists => refresh + exchange silently.
 - Else fallback to interactive flow again.
+
+Optional background auto-refresh:
+- Enable `--auto-refresh` (or `auto_refresh = true` in the manager INI).
+- The refresher uses the refresh token to obtain a new UPST about 10 minutes before expiry.
+- `--refresh-safety-window <seconds>` controls how early the refresh happens (default `600`).
+
+Daemon mode (background refresh after CLI exits):
+- Run `woci --daemon session authenticate` to mint a UPST and start a background refresh process.
+- The daemon PID is stored at `~/.oci/sessions/<profile>/woci_refresh.pid`.
+- Manage it with `--daemon-status` and `--stop-daemon`.
 
 ## Usage Examples
 
@@ -339,6 +352,11 @@ Wrapper-only flags (not passed through to OCI; all other args are forwarded to t
 - `--redirect-port <port>`: Local callback port (default `8181`); redirect URI is `http://127.0.0.1:<port>/callback`.
 - `--refresh-token-passphrase-env <VAR>`: Env var containing passphrase to encrypt/decrypt the refresh token file.
 - `--refresh-token-passphrase-prompt`: Prompt for passphrase interactively.
+- `--auto-refresh`: Start a background thread that refreshes the UPST before expiry.
+- `--refresh-safety-window <seconds>`: How many seconds before expiry the refresh occurs (default `600`).
+- `--daemon`: Start a background daemon that refreshes the UPST and exit (implies auto-refresh).
+- `--daemon-status`: Show daemon status for the selected profile.
+- `--stop-daemon`: Stop the daemon for the selected profile.
 - `--log-level <LEVEL>`: `DEBUG|INFO|WARNING|ERROR` (default `INFO`).
 
 ## Config sources & precedence (summary)

@@ -8,6 +8,8 @@ Instead of manually running `oci session authenticate` on a schedule, you:
 - Receive a long-lived **refresh token** and a short-lived **access token**.
 - The wrapper exchanges the access token for an **OCI UPST** and writes it into the standard OCI session layout.
 - On subsequent runs, the wrapper refreshes tokens **offline** (from the stored refresh token) until the refresh token itself expires or becomes invalid.
+- Optional: enable a background auto-refresh thread to refresh the UPST ~10 minutes before expiry for long-running commands.
+- Optional: start a background daemon (`--daemon`) that keeps refreshing even after the CLI exits.
 - The OCI CLI always runs against a **security_token** profile, but you never have to manage the UPST by hand.
 
 For detailed installation, configuration, and usage examples, see **[`QUICKSTART.md`](./QUICKSTART.md)**.
@@ -42,12 +44,19 @@ At a high level, the tool enables this flow:
      - Decodes the UPST (JWT) from `~/.oci/sessions/<profile>/token`.
      - Checks its `exp` and whether it’s expiring within the next ~60 seconds.
    - If the UPST is still valid, it **does nothing** and simply runs `oci` with `--auth security_token`.
-   - If the UPST is expired or near expiry but a refresh token is present:
-     - It performs a **Refresh Token** grant at the OIDC token endpoint.
+    - If the UPST is expired or near expiry but a refresh token is present:
+      - It performs a **Refresh Token** grant at the OIDC token endpoint.
      - Receives a fresh access token (and possibly a rotated refresh token).
      - Exchanges the access token for a **new UPST** via OCI’s token exchange endpoint.
      - Updates the UPST and refresh token files on disk.
-   - All of this happens **offline** from the user’s perspective (no browser interaction) as long as the refresh token remains valid.
+    - All of this happens **offline** from the user’s perspective (no browser interaction) as long as the refresh token remains valid.
+
+    - Optional: **Auto-refresh background thread**
+      - If enabled, the wrapper will refresh the UPST in the background ~10 minutes before expiry.
+      - This is useful for long-running `oci` commands or clients that keep a process alive.
+    - Optional: **Daemon mode**
+      - `--daemon` starts a background refresh process and the CLI exits.
+      - Use `--daemon-status` and `--stop-daemon` to manage it.
 
 3. **When the refresh token expires or becomes invalid**
    - If the refresh attempt fails (e.g. refresh token expired, revoked, or otherwise unusable):
@@ -140,4 +149,3 @@ refer to **[`QUICKSTART.md`](./QUICKSTART.md)**.
 - Commit messages must follow Conventional Commits (e.g., `feat: add oauth flow`, `fix: handle missing scope`, `chore!: drop py38`).
 - Releases are produced from the `main` branch; the pipeline tags `v<major.minor.patch>`, updates the changelog, and creates a GitHub release.
 - Run `semantic-release publish --noop --verbosity=DEBUG` locally to dry-run if you need to validate changes before merging to `main`.
-
