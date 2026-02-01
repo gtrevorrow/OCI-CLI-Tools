@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "woci-session-manager"
+version = "0.1.0"
+description = "Wrapped OCI CLI for UPST session management with OAuth2 Authorization Code + token exchange"
+readme = "QUICKSTART.md"
+authors = [{ name="Gordon Trevorrow" }]
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = [
+  "requests>=2.31.0",
+  "cryptography>=41.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "python-semantic-release>=9.8.0",
+  "build>=1.2.1",
+  "commitizen>=3.27.0",
+]
+
+[project.urls]
+Homepage = "https://example.com/woci"
+
+[project.scripts]
+# Provide convenient CLI names for pipx installs
+woci = "oci_upst_session_manager:main"
+woci-session-manager = "oci_upst_session_manager:main"
+
+[tool.semantic_release]
+# Use git tags as the source of truth for the version and keep pyproject.toml in sync.
+version_source = "tag"
+branch = "main"
+version_toml = ["pyproject.toml:project.version"]
+changelog_file = "CHANGELOG.md"
+tag_format = "v{version}"
+upload_to_pypi = false
+upload_to_release = true
+build_command = "python -m build"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "v$version"
+version_files = ["pyproject.toml:version ="]
+update_changelog_on_bump = false
+

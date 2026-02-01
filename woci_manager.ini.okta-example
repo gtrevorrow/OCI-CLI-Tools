@@ -1,0 +1,74 @@
+# Example Okta configuration for woci_manager.ini
+# Copy this file to ~/.oci/woci_manager.ini and replace placeholder values
+# ============================================================================
+
+[COMMON]
+# Okta Custom Authorization Server endpoints (required for JWT access tokens)
+authz_base_url = https://your-domain.okta.com/oauth2/default/v1/authorize
+token_url = https://your-domain.okta.com/oauth2/default/v1/token
+# Optional: if Okta token exchange endpoint differs
+# token_exchange_url = https://your-domain.okta.com/oauth2/default/v1/token
+
+# Okta OAuth client used for Authorization Code + Refresh Token grants
+auth_client_id = 0oa1exampleOktaClientId
+# Uncomment if using a confidential client (recommended)
+# auth_client_secret = your_okta_client_secret
+# For public PKCE-only clients, leave auth_client_secret commented out
+
+# OCI Workload Identity Federation app credentials
+client_id = ocid1.credential.oc1..aaaaexamplecredentialocid
+client_secret = your_oci_wif_client_secret
+
+# Scopes requested from Okta (offline_access is REQUIRED for refresh tokens)
+scope = openid offline_access
+
+# Local redirect port; must match Okta app redirect URIs (e.g., http://127.0.0.1:8181/callback)
+redirect_port = 8181
+
+# Optional: encrypt refresh_token at rest (choose one mechanism)
+# refresh_token_passphrase_env = WOCI_RT_PASSPHRASE
+# refresh_token_passphrase_prompt = true
+
+log_level = INFO
+
+[DEFAULT]
+# Applies to OCI CLI profile named "okta-federated"
+profile_name = okta-federated
+region = us-ashburn-1
+
+[dev]
+# Example additional profile that overrides only what differs from COMMON
+profile_name = okta-dev
+region = us-phoenix-1
+# Override scope/token URL if dev tenant differs
+# authz_base_url = https://dev-domain.okta.com/oauth2/default/v1/authorize
+# token_url = https://dev-domain.okta.com/oauth2/default/v1/token
+
+# ============================================================================
+# HOW TO USE THIS FILE
+# ============================================================================
+# 1. Copy to ~/.oci/woci_manager.ini (or pass --manager-config pointing here)
+# 2. Replace placeholder domains, client IDs/secrets, and OCI credential OCIDs
+# 3. Ensure your Okta app has these settings:
+#    - Application type: Web
+#    - Login redirect URI: http://127.0.0.1:8181/callback
+#    - Grant types: Authorization Code, Refresh Token
+#    - PKCE: enabled/required
+#    - Scopes granted: openid, offline_access, profile, email
+# 4. Okta authorization server must be "custom" (/oauth2/<id>/) to return JWT access tokens
+# 5. In OCI IAM (Identity > Federation > Workload Identity Federation), create a client,
+#    collect client_id/client_secret, and allow the Okta issuer URL.
+
+# ============================================================================
+# TROUBLESHOOTING: Opaque vs JWT Access Tokens
+# ============================================================================
+# SYMPTOM: Token exchange fails with "Invalid JWT" or "Unable to parse subject_token".
+# CAUSE: Okta org authorization server (/oauth2/v1/) returns OPAQUE access tokens by default.
+#        OCI's token exchange requires JWT access tokens.
+# FIX:   Use a custom authorization server endpoint (e.g., /oauth2/default/ or /oauth2/aus123/).
+# VERIFY:
+#   $ ACCESS=$(jq -r .access_token ~/.oci/sessions/okta-federated/token 2>/dev/null || cat ~/.oci/sessions/okta-federated/token)
+#   $ echo "$ACCESS" | awk -F'.' 'NF==3 {print $2}' | base64 -d 2>/dev/null | jq .
+#   - If you see JSON claims (iss, aud, exp): JWT (correct).
+#   - If decoding fails: token is opaque → switch to custom auth server.
+# ============================================================================

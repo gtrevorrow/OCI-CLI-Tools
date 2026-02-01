@@ -48,3 +48,8 @@ Thumbs.db
 *.mov
 *.wmv
 
+/user_group_filter.py
+/config.toml
+/get_ipst.py
+/ipstToAWS.py
+dummy
