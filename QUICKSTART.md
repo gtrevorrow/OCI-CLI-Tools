@@ -222,7 +222,7 @@ Behavior:
 - Passphrase precedence: prompt (`--refresh-token-passphrase-prompt`) > env (`--refresh-token-passphrase-env`).
 
 ## First Run Flow
-1. Launch `woci` with an OCI command.
+1. Launch the tool (using the `woci` alias or `oci-upst-session-manager`) with an OCI command.
 2. If no valid UPST & refresh token: browser opens Authorization Code flow (PKCE).
 3. Exchange code -> access + refresh tokens.
 4. Exchange access token -> UPST; store artifacts; update OCI config.
