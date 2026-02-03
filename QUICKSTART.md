@@ -46,14 +46,14 @@ Choose one of the following ways to fetch the sources from the GitHub repo:
 ```bash
 git clone https://github.com/gtrevorrow/OCI-CLI-Tools.git
 cd OCI-CLI-Tools
-# checkout the feature branch
-git checkout feature/woci-session-manager
+# checkout the main branch
+git checkout main
 ```
 
 - Download the branch as a ZIP (no git required):
 ```bash
 curl -L -o woci.zip \
-  "https://codeload.github.com/gtrevorrow/OCI-CLI-Tools/zip/refs/heads/feature/woci-session-manager"
+  "https://codeload.github.com/gtrevorrow/OCI-CLI-Tools/zip/refs/heads/main"
 unzip woci.zip
 cd OCI-CLI-Tools-*
 ```
@@ -341,7 +341,7 @@ To update the tool to the latest version, pull the changes from git and re-run t
 
 ```bash
 cd OCI-CLI-Tools
-git pull origin feature/woci-session-manager
+git pull origin main
 ./install.sh
 ```
 
