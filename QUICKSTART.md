@@ -89,6 +89,7 @@ chmod +x install.sh
 ./install.sh
 ~/.local/bin/oci-upst-session-manager --help
 ```
+Note: the installer also installs the local package into the venv so the startup log shows the actual version instead of `dev`.
 Optional convenience alias (default is `woci`):
 ```bash
 ./install.sh --alias woci
