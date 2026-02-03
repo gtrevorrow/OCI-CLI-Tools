@@ -28,6 +28,50 @@ BIN_DIR="${HOME}/.local/bin"
 PYTHON_BIN="${PYTHON:-python3}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT_PATH="${SCRIPT_DIR}/oci_upst_session_manager.py"
+ALIAS_NAME="woci"
+
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+  echo "WARNING: Running install.sh with sudo is not required and may cause pip cache warnings." >&2
+  echo "         Re-run as your user for a cleaner install; sudo will be used only if needed to remove old symlinks." >&2
+fi
+
+usage() {
+  cat <<EOF
+Usage: ./install.sh [--alias NAME] [--no-alias]
+
+Options:
+  --alias NAME   Create a symlink NAME in ~/.local/bin (default: woci)
+  --no-alias     Do not create an alias symlink
+  -h, --help     Show this help
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --alias)
+      if [ -z "${2:-}" ]; then
+        echo "Error: --alias requires a name" >&2
+        usage
+        exit 2
+      fi
+      ALIAS_NAME="$2"
+      shift 2
+      ;;
+    --no-alias)
+      ALIAS_NAME=""
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Error: unknown option: $1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+done
 
 if [ ! -f "${SCRIPT_PATH}" ]; then
   echo "Error: cannot find oci_upst_session_manager.py next to install.sh (looked at ${SCRIPT_PATH})" >&2
@@ -75,6 +119,47 @@ sed -i '' -e "s|REPLACED_AT_INSTALL|$ESCAPED_SCRIPT_PATH|" "$LAUNCHER" 2>/dev/nu
 
 chmod +x "${LAUNCHER}"
 
+# Create a convenient alias launcher (optional)
+if [ -n "${ALIAS_NAME}" ]; then
+  ALIAS_LAUNCHER="${BIN_DIR}/${ALIAS_NAME}"
+
+  # If an old alias exists earlier in PATH, remove it when possible
+  EXISTING_PATH="$(command -v "${ALIAS_NAME}" 2>/dev/null || true)"
+  if [ -n "${EXISTING_PATH}" ] && [ "${EXISTING_PATH}" != "${ALIAS_LAUNCHER}" ]; then
+    if [ -L "${EXISTING_PATH}" ]; then
+      if [ -w "${EXISTING_PATH}" ]; then
+        rm -f "${EXISTING_PATH}"
+        echo "Removed old alias symlink at ${EXISTING_PATH}"
+      else
+        if command -v sudo >/dev/null 2>&1; then
+          echo "Attempting to remove old alias symlink with sudo: ${EXISTING_PATH}"
+          if sudo rm -f "${EXISTING_PATH}"; then
+            echo "Removed old alias symlink at ${EXISTING_PATH}"
+          else
+            echo "WARNING: Failed to remove ${EXISTING_PATH} with sudo." >&2
+            echo "         Remove it manually (e.g., sudo rm -f ${EXISTING_PATH}) or adjust PATH." >&2
+          fi
+        else
+          echo "WARNING: '${ALIAS_NAME}' resolves to ${EXISTING_PATH} and is not writable." >&2
+          echo "         Remove it manually (e.g., sudo rm -f ${EXISTING_PATH}) or adjust PATH." >&2
+        fi
+      fi
+    else
+      echo "WARNING: '${ALIAS_NAME}' resolves to ${EXISTING_PATH} and is not a symlink." >&2
+      echo "         Remove or rename it to avoid conflicts." >&2
+    fi
+  fi
+
+  ln -sf "${LAUNCHER}" "${ALIAS_LAUNCHER}"
+
+  # Warn if another alias with same name is still earlier in PATH
+  EXISTING_PATH="$(command -v "${ALIAS_NAME}" 2>/dev/null || true)"
+  if [ -n "${EXISTING_PATH}" ] && [ "${EXISTING_PATH}" != "${ALIAS_LAUNCHER}" ]; then
+    echo "WARNING: '${ALIAS_NAME}' resolves to ${EXISTING_PATH} (not ${ALIAS_LAUNCHER})." >&2
+    echo "         Ensure ${BIN_DIR} appears before other PATH entries or remove the old symlink." >&2
+  fi
+fi
+
 # Final notes
 case ":$PATH:" in
   *":${BIN_DIR}:"*) ;;
@@ -83,3 +168,6 @@ case ":$PATH:" in
 
 echo "Installed ${APP_NAME}. Try:"
 echo "  ${APP_NAME} --help"
+if [ -n "${ALIAS_NAME}" ]; then
+  echo "  ${ALIAS_NAME} --help"
+fi
