@@ -179,8 +179,8 @@ Rules:
 - The active profile is determined by the `--profile` flag (passed through to OCI).
 - If no profile is provided, the wrapper falls back to looking for a `[DEFAULT]` section in the manager INI. If found, it uses that.
 - If a profile IS provided (e.g. `--profile prod`), the wrapper looks for a `[prod]` section in the manager INI.
-- `[COMMON]` supplies shared values. The manager INI `[DEFAULT]` section is not used for profile selection; put shared values in `[COMMON]` instead.
-- To reuse the same metadata across multiple profiles, duplicate the section or place shared keys in `[COMMON]`; the wrapper no longer supports mixing metadata from one profile with artifacts for another.
+- `[COMMON]` is a special section for **shared configuration**. All other sections automatically inherit values from it (unless they override them). Use it to avoid repeating things like `redirect_port` or `log_level`.
+- `[DEFAULT]` is treated as just another named profile section. It is **not** a base for inheritance. It is only selected if you run the tool without specifying a profile (and no other sections match).
 
 Artifacts stored under: `~/.oci/sessions/<profile>/`:
 - `token` (UPST)
