@@ -61,7 +61,7 @@ REFRESH_TOKEN_KDF_ITERATIONS = 200_000
 MANAGER_DEFAULT_FILENAME = "woci_manager.ini"
 # Package version (from pyproject.toml via importlib.metadata)
 try:
-    __version__ = pkg_version("oci-cli-tools")
+    __version__ = pkg_version("woci-session-manager")
 except PackageNotFoundError:
     __version__ = "dev"
 # ---------- Utils ----------
