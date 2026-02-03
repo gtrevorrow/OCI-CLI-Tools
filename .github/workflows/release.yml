@@ -33,3 +33,22 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   python -m semantic_release publish
+
+            - name: Update floating tags
+              shell: bash
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n1)"
+                  if [ -z "$latest_tag" ]; then
+                      echo "No release tag found."
+                      exit 1
+                  fi
+                  major="${latest_tag#v}"
+                  major="${major%%.*}"
+                  git tag -f latest "$latest_tag"
+                  git tag -f "v${major}" "$latest_tag"
+                  git push --force origin latest "v${major}"

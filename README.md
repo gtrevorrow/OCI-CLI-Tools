@@ -160,4 +160,5 @@ refer to **[`QUICKSTART.md`](./QUICKSTART.md)**.
 - Versioning follows Semantic Versioning and is automated via `python-semantic-release`.
 - Commit messages must follow Conventional Commits (e.g., `feat: add oauth flow`, `fix: handle missing scope`, `chore!: drop py38`).
 - Releases are produced from the `main` branch; the pipeline tags `v<major.minor.patch>`, updates the changelog, and creates a GitHub release.
+- The pipeline also maintains floating tags `latest` and `v<major>` that always point to the most recent release.
 - Run `semantic-release publish --noop --verbosity=DEBUG` locally to dry-run if you need to validate changes before merging to `main`.
