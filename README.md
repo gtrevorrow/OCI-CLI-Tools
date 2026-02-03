@@ -133,6 +133,17 @@ From the user’s perspective, this means:
 
 ---
 
+## Security and Operational Notes
+
+- **Refresh token sensitivity**: The refresh token is the long-lived credential. Prefer encryption at rest (`encrypt_refresh_token = true`) if your environment supports password entry or secure env var injection.
+- **Session token lifetime**: Capped at 60 minutes (OCI limit). The wrapper automatically renews it via the refresh token before running commands.
+- **Encryption details**: Passphrase derivation uses PBKDF2-HMAC-SHA256 (200k iterations) for a balanced cost.
+- **Secrets management**: Avoid committing `woci_manager.ini` if it contains a `client_secret`.
+- **Logging**: Tokens are never logged; only the authorization URL is printed.
+- **Rotation**: Supports refresh token rotation; if the provider returns a new refresh token, the script updates the stored file.
+
+---
+
 ## Where to go next
 
 For full configuration details, including:

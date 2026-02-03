@@ -297,14 +297,6 @@ First call triggers interactive login; subsequent calls refresh silently.
 - Authorization errors: verify redirect URI registration & exact client_id/client_secret.
 - Browser fails to open: copy the logged `Auth URL:` manually or run `open <URL>` on macOS.
 
-## Security Notes
-- Refresh token is sensitive; prefer encryption at rest.
-- Session token lifetime is capped at 60 minutes; the wrapper renews via refresh token before running OCI commands.
-- Passphrase derivation uses PBKDF2-HMAC-SHA256 (200k iterations) for a balanced cost.
-Additional considerations:
-- Avoid committing `woci_manager.ini` if it contains a `client_secret`.
-- Tokens are never logged; only the authorization URL is printed.
-- Refresh token rotation: Some providers rotate refresh tokens; script saves new one if returned.
 
 ## Exit Codes
 - 0  Wrapper succeeded and underlying OCI command exited 0
