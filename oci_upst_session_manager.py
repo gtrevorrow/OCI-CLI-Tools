@@ -105,6 +105,63 @@ def write_secret_file(path: str, content: bytes) -> None:
         pass
 
 
+def normalize_oci_config(config_file: str) -> None:
+    """Remove duplicate keys within each section of an OCI config file.
+
+    OCI CLI uses a strict INI parser and will error on duplicates. This
+    normalizes by keeping the last occurrence of each key per section.
+    """
+    if not os.path.exists(config_file):
+        return
+
+    try:
+        lines = open(config_file, "r", encoding="utf-8").read().splitlines()
+    except Exception:
+        return
+
+    # Track last occurrence of each key per section
+    last_idx: dict[tuple[str, str], int] = {}
+    section = ""
+    for idx, raw in enumerate(lines):
+        ln = raw.strip()
+        if not ln or ln.startswith("#") or ln.startswith(";"):
+            continue
+        if ln.startswith("[") and ln.endswith("]"):
+            section = ln[1:-1].strip()
+            continue
+        if "=" in ln and not ln.startswith("="):
+            key = ln.split("=", 1)[0].strip().lower()
+            last_idx[(section, key)] = idx
+
+    if not last_idx:
+        return
+
+    out: list[str] = []
+    section = ""
+    dropped = 0
+    for idx, raw in enumerate(lines):
+        ln = raw.strip()
+        if ln.startswith("[") and ln.endswith("]"):
+            section = ln[1:-1].strip()
+            out.append(raw)
+            continue
+        if ln and not ln.startswith("#") and not ln.startswith(";") and "=" in ln and not ln.startswith("="):
+            key = ln.split("=", 1)[0].strip().lower()
+            if last_idx.get((section, key)) != idx:
+                dropped += 1
+                continue
+        out.append(raw)
+
+    if dropped == 0:
+        return
+
+    try:
+        with open(config_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(out) + "\n")
+    except Exception:
+        return
+
+
 # ---------- OAuth PKCE (S256) helpers ----------
 
 import secrets
@@ -1187,6 +1244,7 @@ def main():
     setup_logging(args.log_level or "INFO")
 
     LOG.info("woci version %s", __version__)
+    normalize_oci_config(args.config_file)
     LOG.info(
         "Resolved config: profile=%s authz_url=%s token_url=%s exchange_url=%s scope='%s' redirect_port=%s section=%s",
         args.profile_name,
