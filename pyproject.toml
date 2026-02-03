@@ -30,6 +30,9 @@ Homepage = "https://example.com/woci"
 woci = "oci_upst_session_manager:main"
 woci-session-manager = "oci_upst_session_manager:main"
 
+[tool.setuptools]
+py-modules = ["oci_upst_session_manager", "oci_session_wrapper"]
+
 [tool.semantic_release]
 # Use git tags as the source of truth for the version and keep pyproject.toml in sync.
 version_source = "tag"
