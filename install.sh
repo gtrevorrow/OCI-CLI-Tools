@@ -75,6 +75,10 @@ sed -i '' -e "s|REPLACED_AT_INSTALL|$ESCAPED_SCRIPT_PATH|" "$LAUNCHER" 2>/dev/nu
 
 chmod +x "${LAUNCHER}"
 
+# Create a convenient alias launcher
+WOCI_LAUNCHER="${BIN_DIR}/woci"
+ln -sf "${LAUNCHER}" "${WOCI_LAUNCHER}"
+
 # Final notes
 case ":$PATH:" in
   *":${BIN_DIR}:"*) ;;
@@ -83,3 +87,4 @@ case ":$PATH:" in
 
 echo "Installed ${APP_NAME}. Try:"
 echo "  ${APP_NAME} --help"
+echo "  woci --help"
