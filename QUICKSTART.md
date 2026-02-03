@@ -247,22 +247,9 @@ Daemon mode (background refresh logic that outlives the CLI process):
 
 ## Usage Examples
 
-Interactive cluster token generation:
+Standard usage (configuration auto-loaded from `~/.oci/woci_manager.ini`):
 ```bash
-woci \
-  --profile myprofile \
-  --authz-base-url https://idcs-tenant.identity.oraclecloud.com/oauth2/v1/authorize \
-  --token-url https://idcs-tenant.identity.oraclecloud.com/oauth2/v1/token \
-  --client-id YOUR_CLIENT_ID \
-  --client-secret YOUR_CLIENT_SECRET \
-  --scope "openid offline_access" \
-  ce cluster generate-token --cluster-id OCID
-```
-(Region may be inferred from OCI config; add `--region us-ashburn-1` if needed.)
-
-Using manager config only (auto-discovered):
-```bash
-woci ce cluster generate-token --cluster-id OCID --profile myprofile
+woci --profile prod os ns get
 ```
 
 Encrypt refresh token (env var method):
