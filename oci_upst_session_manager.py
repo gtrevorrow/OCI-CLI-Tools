@@ -1198,7 +1198,7 @@ def main():
         selected_section_name,
     )
 
-    # Improved detection: scan for "session" command, handling preceding flags
+    # Improved detection: scan for "session" command and find its subcommand
     session_index = -1
     for i, arg in enumerate(passthrough):
         if arg == "session":
@@ -1208,8 +1208,14 @@ def main():
     is_session_authenticate = False
     is_session_cmd = False
 
-    if session_index != -1 and session_index + 1 < len(passthrough):
-        subcmd = passthrough[session_index + 1]
+    if session_index != -1:
+        subcmd = None
+        for j in range(session_index + 1, len(passthrough)):
+            token = passthrough[j]
+            if token.startswith("-"):
+                continue
+            subcmd = token
+            break
         if subcmd == "authenticate":
             is_session_authenticate = True
             is_session_cmd = True
