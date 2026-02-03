@@ -1089,7 +1089,8 @@ def main():
     cp = None
     common_data = {}
     if manager_path:
-        cp = configparser.ConfigParser()
+        # Treat [DEFAULT] as a normal section (do not merge defaults implicitly)
+        cp = configparser.ConfigParser(default_section="__DEFAULT__")
         try:
             read_files = cp.read(manager_path)
             if not read_files and args.manager_config:
