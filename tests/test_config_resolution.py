@@ -18,6 +18,8 @@ def _run_main_with_args(monkeypatch, args, env=None):
     monkeypatch.setattr("sys.argv", argv)
     # Avoid actually running ensure_session logic; we only care about config resolution/exit code.
     monkeypatch.setattr(mgr, "ensure_session", lambda *a, **k: None)
+    # Avoid calling the real OCI CLI in passthrough.
+    monkeypatch.setattr(mgr, "run_cmd_passthrough", lambda *a, **k: 0)
     if env is not None:
         for k, v in env.items():
             if v is None:
