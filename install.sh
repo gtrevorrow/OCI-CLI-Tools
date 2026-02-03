@@ -23,12 +23,19 @@
 set -euo pipefail
 
 APP_NAME="oci-upst-session-manager"
-APP_DIR="${HOME}/.local/share/oci-upst-manager"
-BIN_DIR="${HOME}/.local/bin"
 PYTHON_BIN="${PYTHON:-python3}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT_PATH="${SCRIPT_DIR}/oci_upst_session_manager.py"
 ALIAS_NAME="woci"
+SYSTEM_LINK=false
+TARGET_HOME="${HOME}"
+
+if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+  TARGET_HOME="$(eval echo "~${SUDO_USER}")"
+fi
+
+APP_DIR="${TARGET_HOME}/.local/share/oci-upst-manager"
+BIN_DIR="${TARGET_HOME}/.local/bin"
 
 if [ "${EUID:-$(id -u)}" -eq 0 ]; then
   echo "WARNING: Running install.sh with sudo is not required and may cause pip cache warnings." >&2
@@ -37,11 +44,12 @@ fi
 
 usage() {
   cat <<EOF
-Usage: ./install.sh [--alias NAME] [--no-alias]
+Usage: ./install.sh [--alias NAME] [--no-alias] [--system-link]
 
 Options:
   --alias NAME   Create a symlink NAME in ~/.local/bin (default: woci)
   --no-alias     Do not create an alias symlink
+  --system-link  Also create the alias in /usr/local/bin (may prompt for sudo)
   -h, --help     Show this help
 EOF
 }
@@ -59,6 +67,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --no-alias)
       ALIAS_NAME=""
+      shift
+      ;;
+    --system-link)
+      SYSTEM_LINK=true
       shift
       ;;
     -h|--help)
@@ -152,6 +164,25 @@ if [ -n "${ALIAS_NAME}" ]; then
 
   ln -sf "${LAUNCHER}" "${ALIAS_LAUNCHER}"
 
+  if [ "${SYSTEM_LINK}" = true ]; then
+    SYSTEM_ALIAS="/usr/local/bin/${ALIAS_NAME}"
+    if [ -w "$(dirname "${SYSTEM_ALIAS}")" ]; then
+      ln -sf "${LAUNCHER}" "${SYSTEM_ALIAS}"
+      echo "Created system alias at ${SYSTEM_ALIAS}"
+    else
+      if command -v sudo >/dev/null 2>&1; then
+        echo "Attempting to create system alias with sudo: ${SYSTEM_ALIAS}"
+        if sudo ln -sf "${LAUNCHER}" "${SYSTEM_ALIAS}"; then
+          echo "Created system alias at ${SYSTEM_ALIAS}"
+        else
+          echo "WARNING: Failed to create system alias at ${SYSTEM_ALIAS}." >&2
+        fi
+      else
+        echo "WARNING: Cannot create system alias at ${SYSTEM_ALIAS} (no sudo)." >&2
+      fi
+    fi
+  fi
+
   # Warn if another alias with same name is still earlier in PATH
   EXISTING_PATH="$(command -v "${ALIAS_NAME}" 2>/dev/null || true)"
   if [ -n "${EXISTING_PATH}" ] && [ "${EXISTING_PATH}" != "${ALIAS_LAUNCHER}" ]; then
@@ -163,7 +194,12 @@ fi
 # Final notes
 case ":$PATH:" in
   *":${BIN_DIR}:"*) ;;
-  *) echo "NOTE: Add ${BIN_DIR} to your PATH to use '${APP_NAME}' directly." ;;
+  *)
+     echo "NOTE: Add ${BIN_DIR} to your PATH to use '${APP_NAME}' directly."
+     if [ -n "${ALIAS_NAME}" ]; then
+       echo "      Or re-run with --system-link to install the alias in /usr/local/bin."
+     fi
+     ;;
  esac
 
 echo "Installed ${APP_NAME}. Try:"

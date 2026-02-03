@@ -99,6 +99,10 @@ Or choose a custom alias name:
 ./install.sh --alias mywoci
 which mywoci
 ```
+If `~/.local/bin` is not on your PATH, you can also install the alias into `/usr/local/bin`:
+```bash
+./install.sh --alias woci --system-link
+```
 Disable alias creation entirely:
 ```bash
 ./install.sh --no-alias
