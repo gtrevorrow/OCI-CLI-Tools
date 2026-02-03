@@ -35,8 +35,8 @@ woci-session-manager = "oci_upst_session_manager:main"
 py-modules = ["oci_upst_session_manager", "oci_session_wrapper"]
 
 [tool.semantic_release]
-# Use git tags as the source of truth for the version and keep pyproject.toml in sync.
-version_source = "tag"
+# Use the version from pyproject.toml for bootstrap; tags are emitted on release.
+version_source = "commit"
 branch = "main"
 version_toml = ["pyproject.toml:project.version"]
 changelog_file = "CHANGELOG.md"
