@@ -130,7 +130,9 @@ ln -sf "$(pwd)/oci_upst_session_manager.py" /usr/local/bin/woci
 
 #### OCI CLI config (standard):  e.g.  `~/.oci/config`
 
-#### WOCI manager config. Auto-discovered OR specified via the `--config-file` option.
+#### WOCI manager config (`woci_manager.ini`)
+
+This file contains the **Identity Provider configuration** required to perform the OAuth 2.0 and token exchange flows. While `~/.oci/config` holds standard OCI settings (region, tenancy), `woci_manager.ini` holds the **OIDC details** (Authorization URL, Token URL, Client IDs) that the OCI CLI does not natively understand.
 
 Default auto-discovery filename: `woci_manager.ini`.
 
