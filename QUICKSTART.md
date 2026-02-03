@@ -142,8 +142,7 @@ Auto-discovery and precedence rules:
 5. An explicit `--manager-config` CLI flag overrides both the environment variable and auto-discovery.
 Notes:
 - If `--manager-config` or `WOCI_MANAGER_CONFIG` is provided but the file cannot be read, the wrapper exits with a configuration error.
-- If only an auto-discovered file is present and it cannot be read, the wrapper ignores it and continues without manager-config.
-
+- If only an auto-discovered file is present and it cannot be read, the wrapper ignores it and continues without manager-config. **In this state, it can only reuse an existing valid UPST; it will fail if authentication or refresh is required.**
 The manager INI supports a `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `log_level`).
 If you do not supply a profile, the wrapper falls back to the OCI-style `DEFAULT` profile name (artifacts land in `~/.oci/sessions/DEFAULT/`) if a corresponding section exists or can be inferred. You pick an explicit profile via OCI passthrough `--profile`. `[COMMON]` only contributes shared values; it never selects the profile.
 
