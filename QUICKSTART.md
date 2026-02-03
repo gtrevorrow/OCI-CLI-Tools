@@ -282,8 +282,7 @@ Example user exec block that references the woci-manager.ini config file and pro
          - --profile
          - myProfile
          - --manager-config
--        - /Users/foo/Documents/projects/token-exchange/woci-manager.ini
-+        - /Users/foo/Documents/projects/token-exchange/woci_manager.ini
+         - /Users/foo/Documents/projects/token-exchange/woci_manager.ini
        command: woci
 ```
 First call triggers interactive login; subsequent calls refresh silently.
