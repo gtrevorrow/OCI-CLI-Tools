@@ -544,12 +544,14 @@ def perform_exchange_and_save(
     return upst
 
 
-def ensure_session(args, rt_passphrase: Optional[str], rt_iterations: int) -> str:
+def ensure_session(
+    args, rt_passphrase: Optional[str], rt_iterations: int, reauth: bool = False
+) -> str:
     base_dir, token_path, key_path, rt_path, pid_path = resolve_oci_paths(
         args.config_file, args.profile_name
     )
     # 1) If UPST exists and not expiring in next 60s, do nothing
-    if os.path.exists(token_path):
+    if not reauth and os.path.exists(token_path):
         try:
             with open(token_path, "r", encoding="utf-8") as f:
                 upst = f.read().strip()
@@ -567,7 +569,7 @@ def ensure_session(args, rt_passphrase: Optional[str], rt_iterations: int) -> st
             LOG.info("Could not read existing UPST; will attempt refresh or re-auth.")
 
     # 2) If refresh_token exists, use it to refresh AT and exchange to UPST
-    if os.path.exists(rt_path):
+    if not reauth and os.path.exists(rt_path):
         try:
             upst = refresh_from_refresh_token(args, rt_passphrase, rt_iterations)
             return upst
@@ -1209,11 +1211,23 @@ def main():
         selected_section_name,
     )
 
-    is_session_cmd = (
-        len(passthrough) >= 2
-        and passthrough[0] == "session"
-        and passthrough[1] in ("authenticate", "refresh")
-    )
+    # Improved detection: scan for "session" command, handling preceding flags
+    session_index = -1
+    for i, arg in enumerate(passthrough):
+        if arg == "session":
+            session_index = i
+            break
+
+    is_session_authenticate = False
+    is_session_cmd = False
+
+    if session_index != -1 and session_index + 1 < len(passthrough):
+        subcmd = passthrough[session_index + 1]
+        if subcmd == "authenticate":
+            is_session_authenticate = True
+            is_session_cmd = True
+        elif subcmd == "refresh":
+            is_session_cmd = True
     if is_session_cmd:
         LOG.info("Session ensured; skipping OCI session passthrough.")
         passthrough = []
@@ -1227,7 +1241,9 @@ def main():
     )
 
     try:
-        current_upst = ensure_session(args, rt_passphrase, rt_iters)
+        current_upst = ensure_session(
+            args, rt_passphrase, rt_iters, reauth=is_session_authenticate
+        )
     except Exception as e:
         LOG.error("Failed to ensure session: %s", e)
         sys.exit(1)
