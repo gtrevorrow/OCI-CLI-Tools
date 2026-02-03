@@ -20,6 +20,7 @@ dev = [
   "python-semantic-release>=9.8.0",
   "build>=1.2.1",
   "commitizen>=3.27.0",
+  "pytest>=8.0.0",
 ]
 
 [project.urls]
