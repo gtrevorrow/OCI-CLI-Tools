@@ -31,12 +31,14 @@ jobs:
                   python -m pytest -q
 
             - name: Semantic release
+                            if: github.event_name == 'push'
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   python -m semantic_release publish
 
             - name: Update floating tags
+                            if: github.event_name == 'push'
               shell: bash
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
