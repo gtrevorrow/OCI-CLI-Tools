@@ -23,10 +23,10 @@ This diagram shows the silent refresh flow when the UPST is expired but a valid 
 
 Before installing the wrapper, ensure you have:
 
-### OCI Workload Identity Federation Configuration [🔗](https://docs.oracle.com/en-us/iaas/Content/Identity/federation/workload-identity-federation.htm)
+### OCI Workload Identity Federation Configuration [🔗](https://docs.oracle.com/en-us/iaas/Content/Identity/api-getstarted/json_web_token_exchange.htm)
 - **Trust relationship configured**: OCI Workload Identity Federation (WIF) must be set up to establish trust between your OIDC Provider (e.g., Okta) and an OCI IAM domain.
 - **User exists in the domain**: Your user account must exist in the OCI IAM domain where you configured the WIF trust. 
-See [OCI Workload Identity Federation documentation](https://docs.oracle.com/en-us/iaas/Content/Identity/federation/workload-identity-federation.htm) for detailed setup steps.
+See [OCI Workload Identity Federation documentation](https://docs.oracle.com/en-us/iaas/Content/Identity/api-getstarted/json_web_token_exchange.htm) for detailed setup steps.
 
 ### OIDC Client Registrations:
 - **OAuth client registered**: An OAuth 2.0 client  must be registered in your OIDC Provider with:
