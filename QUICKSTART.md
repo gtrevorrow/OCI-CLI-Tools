@@ -337,17 +337,18 @@ Add remote workflow:
 
 ## Updating
  
-To update the tool to the latest version, simply pull the changes from git:
+To update the tool to the latest version, pull the changes from git and re-run the installer:
 
 ```bash
 cd OCI-CLI-Tools
 git pull origin feature/woci-session-manager
+./install.sh
 ```
 
-- **Logic Updates**: Since the installer links to the source script, logic changes take effect immediately after a `git pull`.
-- **Dependency Updates**: If `requirements.txt` changes, you may need to update your environment:
-  - **Option 1 (Installer)**: Rerun `./install.sh`. It is safe/idempotent.
-  - **Option 2/3 (Manual)**: Run `pip install -r requirements.txt` again.
+**Note**: This assumes you used **Option 1 (install.sh)** originally.
+- Running `./install.sh` is **idempotent** and safe to run every time.
+- It ensures that any new dependencies in `requirements.txt` are installed and the environment is consistent.
+- If you installed manually (Option 2/3), you must manage your own `pip install` updates.
 
 
 ---
