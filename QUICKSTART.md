@@ -336,7 +336,19 @@ Add remote workflow:
 - Subsequent cron/container invocations reuse and refresh silently.
 
 ## Updating
-Edit constants (e.g., `REFRESH_TOKEN_KDF_ITERATIONS`) directly in the script if you need to tune; no CLI flag provided to reduce complexity.
+ 
+To update the tool to the latest version, simply pull the changes from git:
+
+```bash
+cd OCI-CLI-Tools
+git pull origin feature/woci-session-manager
+```
+
+- **Logic Updates**: Since the installer links to the source script, logic changes take effect immediately after a `git pull`.
+- **Dependency Updates**: If `requirements.txt` changes, you may need to update your environment:
+  - **Option 1 (Installer)**: Rerun `./install.sh`. It is safe/idempotent.
+  - **Option 2/3 (Manual)**: Run `pip install -r requirements.txt` again.
+
 
 ---
 For feature requests (OIDC discovery, configurable callback path, non-browser device flow fallback), extend the script where noted in comments.
