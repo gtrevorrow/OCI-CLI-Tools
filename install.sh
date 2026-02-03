@@ -106,6 +106,9 @@ else
   "${APP_DIR}/venv/bin/pip" install requests cryptography >/dev/null
 fi
 
+# Install package metadata so version is available in logs
+"${APP_DIR}/venv/bin/pip" install "${SCRIPT_DIR}" --no-deps >/dev/null
+
 # Create launcher
 LAUNCHER="${BIN_DIR}/${APP_NAME}"
 cat > "${LAUNCHER}" <<'EOF'
