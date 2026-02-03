@@ -34,8 +34,13 @@ jobs:
               if: github.event_name == 'push'
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  python -m semantic_release publish
+                  if git tag --list 'v*' | grep -q .; then
+                      python -m semantic_release publish
+                  else
+                      python -m semantic_release publish --first-release
+                  fi
 
             - name: Update floating tags
               if: github.event_name == 'push'
