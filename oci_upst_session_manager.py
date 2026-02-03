@@ -807,7 +807,7 @@ def main():
         "  • Any flags not listed above are forwarded to the underlying 'oci' command.\n"
         "  • '--profile <name>' (OCI flag) is the canonical profile selector for both the wrapper and OCI.\n"
         "  • '--config-file' (OCI flag) is honored by oci; the wrapper auto-discovers woci_manager.ini in\n"
-        "    the same directory unless '--manager-config' or 'WOCI_MANAGER_CONFIG' overrides it.\n"
+        "    the same directory (or ~/.oci as a fallback) unless '--manager-config' or 'WOCI_MANAGER_CONFIG' overrides it.\n"
         "  • You do not need to add '--' before OCI arguments; woci parses its own options first and leaves\n"
         "    the rest untouched.\n"
         "General flow:\n"
@@ -935,7 +935,7 @@ def main():
         default=None,
         help="Path to optional INI config file (OCI style). If omitted, the wrapper will look for '"
         + MANAGER_DEFAULT_FILENAME
-        + "' beside the OCI --config-file (or in ~/.oci when --config-file not supplied). CLI flags override values from this file.",
+        + "' beside the OCI --config-file (and then fall back to ~/.oci). CLI flags override values from this file.",
     )
 
     args, passthrough = p.parse_known_args()
@@ -968,10 +968,10 @@ def main():
     # Profile determination:
     #   1. Collect candidates from passthrough --profile and the selected manager-config section name.
     #   2. If multiple distinct values are present, exit with configuration error.
-    #   3. If none are present, exit with configuration error.
+    #   3. If none are present, fall back to the OCI-style DEFAULT profile name.
     # Manager Config Auto-Discovery:
     #   If --manager-config is omitted, we look for a file named `woci_manager.ini` in the same directory
-    #   as the resolved OCI --config-file (or ~/.oci by default). If found, it is loaded.
+    #   as the resolved OCI --config-file. If not found there, we fall back to ~/.oci/woci_manager.ini.
     # Manager INI merging:
     #   Values are merged as [COMMON] base plus the selected section overrides. CLI flags override both.
     # Required runtime values: authz_base_url, token_url, client_id, client_secret, scope, redirect_port.
@@ -1003,6 +1003,12 @@ def main():
         candidate = os.path.join(cfg_dir, MANAGER_DEFAULT_FILENAME)
         if os.path.exists(candidate):
             auto_manager_path = candidate
+        else:
+            fallback = os.path.expanduser(
+                os.path.join(f"~/{OCI_DIRNAME}", MANAGER_DEFAULT_FILENAME)
+            )
+            if fallback != candidate and os.path.exists(fallback):
+                auto_manager_path = fallback
     # Allow manager-config path to be provided via environment variable as well.
     # Precedence: CLI flag (--manager-config) > env var WOCI_MANAGER_CONFIG > auto-discovered file
     mgr_env = os.environ.get("WOCI_MANAGER_CONFIG")
@@ -1040,10 +1046,8 @@ def main():
                     if cp.has_section(cli_profile):
                         selected_section_name = cli_profile
                 else:
-                    # No profile provided; try to pick the first available section
-                    real_sections = [s for s in cp.sections() if s != "COMMON"]
-                    if real_sections:
-                        selected_section_name = real_sections[0]
+                    if cp.has_section("DEFAULT"):
+                        selected_section_name = "DEFAULT"
 
                 # Merge: [COMMON] base + selected section overrides (if present)
                 ini_section_data = dict(common_data)

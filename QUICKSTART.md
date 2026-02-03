@@ -144,9 +144,9 @@ Auto-discovery and precedence rules:
 5. An explicit `--manager-config` CLI flag overrides both the environment variable and auto-discovery.
 Notes:
 - If `--manager-config` or `WOCI_MANAGER_CONFIG` is provided but the file cannot be read, the wrapper exits with a configuration error.
-- If only an auto-discovered file is present and it cannot be read, the wrapper ignores it and continues without manager-config. **In this state, it can only reuse an existing valid UPST; it will fail if authentication or refresh is required.**
+- If only an auto-discovered file is present and it cannot be read, the wrapper ignores it and continues without manager-config. Required options must still be provided via CLI or a readable manager-config.
 The manager INI supports a `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `log_level`).
-If you do not supply a profile, the wrapper falls back to the OCI-style `DEFAULT` profile name (artifacts land in `~/.oci/sessions/DEFAULT/`) if a corresponding section exists or can be inferred. You pick an explicit profile via OCI passthrough `--profile`. `[COMMON]` only contributes shared values; it never selects the profile.
+If you do not supply a profile, the wrapper uses the `[DEFAULT]` section if present; otherwise it falls back to the OCI-style `DEFAULT` profile name (artifacts land in `~/.oci/sessions/DEFAULT/`). You pick an explicit profile via OCI passthrough `--profile`. `[COMMON]` only contributes shared values; it never selects the profile.
 
 Section name is chosen using precedence documented in Profile Resolution Semantics. CLI flags override section values; manager config never overrides an explicitly supplied CLI flag.
 
@@ -177,10 +177,10 @@ The effective profile governs both the manager metadata and the session artifact
 
 Rules:
 - The active profile is determined by the `--profile` flag (passed through to OCI).
-- If no profile is provided, the wrapper falls back to looking for a `[DEFAULT]` section in the manager INI. If found, it uses that.
+- If no profile is provided, the wrapper falls back to looking for a `[DEFAULT]` section in the manager INI. If found, it uses that. Otherwise, it uses the OCI-style `DEFAULT` profile name and passes `--profile DEFAULT` to OCI.
 - If a profile IS provided (e.g. `--profile prod`), the wrapper looks for a `[prod]` section in the manager INI.
 - `[COMMON]` is a special section for **shared configuration**. All other sections automatically inherit values from it (unless they override them). Use it to avoid repeating things like `redirect_port` or `log_level`.
-- `[DEFAULT]` is treated as just another named profile section. It is **not** a base for inheritance. It is only selected if you run the tool without specifying a profile (and no other sections match).
+- `[DEFAULT]` is treated as just another named profile section. It is **not** a base for inheritance. It is only selected if you run the tool without specifying a profile.
 
 Artifacts stored under: `~/.oci/sessions/<profile>/`:
 - `token` (UPST)
@@ -193,7 +193,6 @@ OCI config is updated (created if absent) with:
 - `region` (if provided)
 
 Additional notes:
-- DEFAULT pseudo-section contributes values only; it is not used as a profile name.
 - The effective profile determines the folders: `~/.oci/sessions/<profile>/`.
 
 ## Redirect URI & Port
