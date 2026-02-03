@@ -139,7 +139,7 @@ if [ -n "${ALIAS_NAME}" ]; then
   EXISTING_PATH="$(command -v "${ALIAS_NAME}" 2>/dev/null || true)"
   if [ -n "${EXISTING_PATH}" ] && [ "${EXISTING_PATH}" != "${ALIAS_LAUNCHER}" ]; then
     if [ -L "${EXISTING_PATH}" ]; then
-      if [ -w "${EXISTING_PATH}" ]; then
+      if [ -w "$(dirname "${EXISTING_PATH}")" ]; then
         rm -f "${EXISTING_PATH}"
         echo "Removed old alias symlink at ${EXISTING_PATH}"
       else
@@ -166,6 +166,12 @@ if [ -n "${ALIAS_NAME}" ]; then
 
   if [ "${SYSTEM_LINK}" = true ]; then
     SYSTEM_ALIAS="/usr/local/bin/${ALIAS_NAME}"
+    if [ -e "${SYSTEM_ALIAS}" ] && [ ! -w "$(dirname "${SYSTEM_ALIAS}")" ]; then
+      if command -v sudo >/dev/null 2>&1; then
+        echo "Attempting to remove existing system alias with sudo: ${SYSTEM_ALIAS}"
+        sudo rm -f "${SYSTEM_ALIAS}" || true
+      fi
+    fi
     if [ -w "$(dirname "${SYSTEM_ALIAS}")" ]; then
       ln -sf "${LAUNCHER}" "${SYSTEM_ALIAS}"
       echo "Created system alias at ${SYSTEM_ALIAS}"
