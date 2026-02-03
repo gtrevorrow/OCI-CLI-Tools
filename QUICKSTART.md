@@ -232,12 +232,14 @@ Subsequent runs:
 - Else if refresh token exists => refresh + exchange silently.
 - Else fallback to interactive flow again.
 
-Optional background auto-refresh:
+Optional background auto-refresh (in-process thread):
+- Best for long-running wrapper jobs (e.g., CI/CD scripts) where the session must stay valid *during* execution but doesn't need to persist afterwards.
 - Enable `--auto-refresh` (or `auto_refresh = true` in the manager INI).
 - The refresher uses the refresh token to obtain a new UPST about 10 minutes before expiry.
 - `--refresh-safety-window <seconds>` controls how early the refresh happens (default `600`).
 
-Daemon mode (background refresh after CLI exits):
+Daemon mode (background refresh logic that outlives the CLI process):
+- Ideal for keeping sessions fresh for external tools (Terraform, IDEs, generic OCI CLI usage) without running the wrapper every time.
 - Run `woci --daemon session authenticate` to mint a UPST and start a background refresh process.
 - The daemon PID is stored at `~/.oci/sessions/<profile>/woci_refresh.pid`.
 - Manage it with `--daemon-status` and `--stop-daemon`.

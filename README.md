@@ -11,8 +11,8 @@ Instead of manually running `oci session authenticate` on a schedule, you:
 - Receive a long-lived **refresh token** and a short-lived **access token**.
 - The wrapper exchanges the access token for an **OCI UPST** and writes it into the standard OCI session layout.
 - On subsequent runs, the wrapper refreshes tokens **offline** (from the stored refresh token) until the refresh token itself expires or becomes invalid.
-- Optional: enable a background auto-refresh thread to refresh the UPST ~10 minutes before expiry for long-running commands.
-- Optional: start a background daemon (`--daemon`) that keeps refreshing even after the CLI exits.
+- **Auto-Refresh Thread** (`--auto-refresh`): Runs *inside* the wrapper process. Keeps the session valid for the duration of a long-running script or job, then exits. Ideal for CI/CD or batch jobs.
+- **Daemon Mode** (`--daemon`): Spawns a detached background process that keeps the session valid indefinitely (until stopped or refresh token expires). Ideal for local development (Terraform, IDEs, multiple terminals).
 - The OCI CLI always runs against a **security_token** profile, but you never have to manage the UPST by hand.
 
 For detailed installation, configuration, and usage examples, see **[`QUICKSTART.md`](./QUICKSTART.md)**.
