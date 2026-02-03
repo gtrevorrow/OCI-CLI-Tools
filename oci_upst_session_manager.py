@@ -937,11 +937,6 @@ def main():
         + MANAGER_DEFAULT_FILENAME
         + "' beside the OCI --config-file (or in ~/.oci when --config-file not supplied). CLI flags override values from this file.",
     )
-    p.add_argument(
-        "--manager-config-section",
-        default=None,
-        help="Section name inside manager INI to load; must correspond to the effective profile when provided.",
-    )
 
     args, passthrough = p.parse_known_args()
 
@@ -1040,23 +1035,15 @@ def main():
                     common_data.update({k: v for k, v in cp["COMMON"].items()})
 
                 # Section resolution
-                if args.manager_config_section:
-                    if cp.has_section(args.manager_config_section):
-                        selected_section_name = args.manager_config_section
-                    else:
-                        print(
-                            f"manager-config section '{args.manager_config_section}' not found in {manager_path}",
-                            file=sys.stderr,
-                        )
-                        sys.exit(2)
+                # Section resolution
+                if cli_profile:
+                    if cp.has_section(cli_profile):
+                        selected_section_name = cli_profile
                 else:
-                    preferred = cli_profile
-                    if preferred and cp.has_section(preferred):
-                        selected_section_name = preferred
-                    else:
-                        real_sections = [s for s in cp.sections() if s != "COMMON"]
-                        if real_sections:
-                            selected_section_name = real_sections[0]
+                    # No profile provided; try to pick the first available section
+                    real_sections = [s for s in cp.sections() if s != "COMMON"]
+                    if real_sections:
+                        selected_section_name = real_sections[0]
 
                 # Merge: [COMMON] base + selected section overrides (if present)
                 ini_section_data = dict(common_data)
@@ -1085,22 +1072,11 @@ def main():
         return DEFAULTS.get(name)
 
     # Profile consistency enforcement (only passthrough --profile and section name)
-    profile_candidates = []
+    # Profile resolution
     if cli_profile:
-        profile_candidates.append(("--profile", cli_profile))
-    if selected_section_name and selected_section_name not in ("COMMON",):
-        profile_candidates.append(("manager-config section", selected_section_name))
-
-    unique_profiles = {val for _, val in profile_candidates}
-    if len(unique_profiles) > 1:
-        details = ", ".join(f"{src}={val}" for src, val in profile_candidates)
-        print(
-            f"Conflicting profile inputs: {details}. Ensure all profile selectors match.",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-    if unique_profiles:
-        args.profile_name = unique_profiles.pop()
+        args.profile_name = cli_profile
+    elif selected_section_name and selected_section_name != "COMMON":
+        args.profile_name = selected_section_name
     else:
         # Fall back to OCI-style DEFAULT profile when nothing was specified
         args.profile_name = "DEFAULT"

@@ -145,7 +145,7 @@ Notes:
 - If only an auto-discovered file is present and it cannot be read, the wrapper ignores it and continues without manager-config.
 
 The manager INI supports a `[COMMON]` section for shared values across profiles (e.g., `redirect_port`, `log_level`).
-If you do not supply a profile, the wrapper now falls back to the OCI-style `DEFAULT` profile name (artifacts land in `~/.oci/sessions/DEFAULT/`). You can still pick an explicit profile via OCI passthrough `--profile` or by selecting a named manager-config section (that section name becomes the profile). `[COMMON]` only contributes shared values; it never selects the profile.
+If you do not supply a profile, the wrapper falls back to the OCI-style `DEFAULT` profile name (artifacts land in `~/.oci/sessions/DEFAULT/`) if a corresponding section exists or can be inferred. You pick an explicit profile via OCI passthrough `--profile`. `[COMMON]` only contributes shared values; it never selects the profile.
 
 Section name is chosen using precedence documented in Profile Resolution Semantics. CLI flags override section values; manager config never overrides an explicitly supplied CLI flag.
 
@@ -175,8 +175,9 @@ Token exchange endpoint guidance:
 The effective profile governs both the manager metadata and the session artifacts (and is also forwarded to OCI if you did not set `--profile` in the passthrough args).
 
 Rules:
-- All profile selectors must agree. The following sources must resolve to the same value: passthrough `--profile` (OCI) and `--manager-config-section` (if provided). If they differ, the wrapper exits with code 2 and explains the conflict.
-- If no profile is determined from those sources, the wrapper falls back to the OCI-style `DEFAULT` profile name (artifacts under `~/.oci/sessions/DEFAULT/`).
+- The active profile is determined by the `--profile` flag (passed through to OCI).
+- If no profile is provided, the wrapper falls back to looking for a `[DEFAULT]` section in the manager INI. If found, it uses that.
+- If a profile IS provided (e.g. `--profile prod`), the wrapper looks for a `[prod]` section in the manager INI.
 - `[COMMON]` supplies shared values. The manager INI `[DEFAULT]` section is not used for profile selection; put shared values in `[COMMON]` instead.
 - To reuse the same metadata across multiple profiles, duplicate the section or place shared keys in `[COMMON]`; the wrapper no longer supports mixing metadata from one profile with artifacts for another.
 
@@ -343,7 +344,6 @@ For feature requests (OIDC discovery, configurable callback path, non-browser de
 Wrapper-only flags (not passed through to OCI; all other args are forwarded to the `oci` CLI unchanged):
 - `--manager-config <path>`: Path to woci manager INI. If omitted, auto-discovery applies (see Configuration Files).
 -  Use `woci_manager.ini` (underscore) if you rely on auto-discovery; other filenames require `--manager-config` or `WOCI_MANAGER_CONFIG`.
-- `--manager-config-section <name>`: Section name inside the manager INI to load. It must correspond to the same profile you run under; use `[COMMON]` or duplicate sections if you need shared metadata across profiles.
 - `--authz-base-url <url>`: Full authorization endpoint URL used for Authorization Code flow with PKCE.
 - `--token-url <url>`: OAuth2 token endpoint for authz code and refresh grants.
 - `--auth-client-id <id>` / `--auth-client-secret <secret>`: OAuth/OIDC client credentials used to perform the Authorization Code + Refresh Token grants against your identity provider.
@@ -366,7 +366,7 @@ Wrapper-only flags (not passed through to OCI; all other args are forwarded to t
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
 | Manager config path       | `--manager-config` CLI flag → `WOCI_MANAGER_CONFIG` env var → auto-discovered `woci_manager.ini` → none                                    |
 | OCI config path           | `--config-file` CLI flag → default `~/.oci/config`                                                                                         |
-| Profile name              | `--profile` (OCI) or manager-config section name; sources must match → error if they differ or none provided |
+| Profile name              | `--profile` (OCI) or inferred from manager config section section if no profile provided |
 | Other runtime settings    | CLI flags → manager-config section values (merged over `[COMMON]`) → hardcoded defaults (only for `config_file`)                          |
 | Manager-config read error | Fatal if path from CLI or env; ignored if from auto-discovery                                                                             |
 
