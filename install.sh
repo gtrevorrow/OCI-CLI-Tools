@@ -30,6 +30,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT_PATH="${SCRIPT_DIR}/oci_upst_session_manager.py"
 ALIAS_NAME="woci"
 
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+  echo "WARNING: Running install.sh with sudo is not required and may cause pip cache warnings." >&2
+  echo "         Re-run as your user for a cleaner install; sudo will be used only if needed to remove old symlinks." >&2
+fi
+
 usage() {
   cat <<EOF
 Usage: ./install.sh [--alias NAME] [--no-alias]
@@ -126,8 +131,18 @@ if [ -n "${ALIAS_NAME}" ]; then
         rm -f "${EXISTING_PATH}"
         echo "Removed old alias symlink at ${EXISTING_PATH}"
       else
-        echo "WARNING: '${ALIAS_NAME}' resolves to ${EXISTING_PATH} and is not writable." >&2
-        echo "         Remove it manually (e.g., sudo rm -f ${EXISTING_PATH}) or adjust PATH." >&2
+        if command -v sudo >/dev/null 2>&1; then
+          echo "Attempting to remove old alias symlink with sudo: ${EXISTING_PATH}"
+          if sudo rm -f "${EXISTING_PATH}"; then
+            echo "Removed old alias symlink at ${EXISTING_PATH}"
+          else
+            echo "WARNING: Failed to remove ${EXISTING_PATH} with sudo." >&2
+            echo "         Remove it manually (e.g., sudo rm -f ${EXISTING_PATH}) or adjust PATH." >&2
+          fi
+        else
+          echo "WARNING: '${ALIAS_NAME}' resolves to ${EXISTING_PATH} and is not writable." >&2
+          echo "         Remove it manually (e.g., sudo rm -f ${EXISTING_PATH}) or adjust PATH." >&2
+        fi
       fi
     else
       echo "WARNING: '${ALIAS_NAME}' resolves to ${EXISTING_PATH} and is not a symlink." >&2

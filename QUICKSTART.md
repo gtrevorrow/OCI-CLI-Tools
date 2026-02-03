@@ -103,7 +103,9 @@ Disable alias creation entirely:
 ```bash
 ./install.sh --no-alias
 ```
-If an older `woci` symlink exists elsewhere on your PATH, the installer will attempt to remove it automatically (when writable). If it cannot, it will print a warning with the path to remove.
+If an older `woci` symlink exists elsewhere on your PATH, the installer will attempt to remove it automatically. If it needs elevated permissions, it will prompt for sudo just for that removal. Otherwise it will print a warning with the path to remove.
+
+Tip: run the installer as your user (no sudo). It only uses sudo if it must remove an old symlink in a privileged location.
 If `~/.local/bin` is not on your PATH (bash):
 ```bash
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bash_profile
