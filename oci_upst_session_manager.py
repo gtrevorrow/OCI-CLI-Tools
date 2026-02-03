@@ -29,6 +29,7 @@ import time
 import errno
 import signal
 import atexit
+from importlib.metadata import version as pkg_version, PackageNotFoundError
 from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlencode, urlparse, parse_qs
@@ -58,6 +59,11 @@ RSA_KEY_BITS = 2048
 REFRESH_TOKEN_KDF_ITERATIONS = 200_000
 # Default manager config filename for auto-discovery
 MANAGER_DEFAULT_FILENAME = "woci_manager.ini"
+# Package version (from pyproject.toml via importlib.metadata)
+try:
+    __version__ = pkg_version("oci-cli-tools")
+except PackageNotFoundError:
+    __version__ = "dev"
 # ---------- Utils ----------
 
 
@@ -1180,6 +1186,7 @@ def main():
 
     setup_logging(args.log_level or "INFO")
 
+    LOG.info("woci version %s", __version__)
     LOG.info(
         "Resolved config: profile=%s authz_url=%s token_url=%s exchange_url=%s scope='%s' redirect_port=%s section=%s",
         args.profile_name,
