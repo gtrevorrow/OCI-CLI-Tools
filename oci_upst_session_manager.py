@@ -544,12 +544,14 @@ def perform_exchange_and_save(
     return upst
 
 
-def ensure_session(args, rt_passphrase: Optional[str], rt_iterations: int) -> str:
+def ensure_session(
+    args, rt_passphrase: Optional[str], rt_iterations: int, reauth: bool = False
+) -> str:
     base_dir, token_path, key_path, rt_path, pid_path = resolve_oci_paths(
         args.config_file, args.profile_name
     )
     # 1) If UPST exists and not expiring in next 60s, do nothing
-    if os.path.exists(token_path):
+    if not reauth and os.path.exists(token_path):
         try:
             with open(token_path, "r", encoding="utf-8") as f:
                 upst = f.read().strip()
@@ -567,7 +569,7 @@ def ensure_session(args, rt_passphrase: Optional[str], rt_iterations: int) -> st
             LOG.info("Could not read existing UPST; will attempt refresh or re-auth.")
 
     # 2) If refresh_token exists, use it to refresh AT and exchange to UPST
-    if os.path.exists(rt_path):
+    if not reauth and os.path.exists(rt_path):
         try:
             upst = refresh_from_refresh_token(args, rt_passphrase, rt_iterations)
             return upst
@@ -805,7 +807,7 @@ def main():
         "  • Any flags not listed above are forwarded to the underlying 'oci' command.\n"
         "  • '--profile <name>' (OCI flag) is the canonical profile selector for both the wrapper and OCI.\n"
         "  • '--config-file' (OCI flag) is honored by oci; the wrapper auto-discovers woci_manager.ini in\n"
-        "    the same directory unless '--manager-config' or 'WOCI_MANAGER_CONFIG' overrides it.\n"
+        "    the same directory (or ~/.oci as a fallback) unless '--manager-config' or 'WOCI_MANAGER_CONFIG' overrides it.\n"
         "  • You do not need to add '--' before OCI arguments; woci parses its own options first and leaves\n"
         "    the rest untouched.\n"
         "General flow:\n"
@@ -933,12 +935,7 @@ def main():
         default=None,
         help="Path to optional INI config file (OCI style). If omitted, the wrapper will look for '"
         + MANAGER_DEFAULT_FILENAME
-        + "' beside the OCI --config-file (or in ~/.oci when --config-file not supplied). CLI flags override values from this file.",
-    )
-    p.add_argument(
-        "--manager-config-section",
-        default=None,
-        help="Section name inside manager INI to load; must correspond to the effective profile when provided.",
+        + "' beside the OCI --config-file (and then fall back to ~/.oci). CLI flags override values from this file.",
     )
 
     args, passthrough = p.parse_known_args()
@@ -971,10 +968,10 @@ def main():
     # Profile determination:
     #   1. Collect candidates from passthrough --profile and the selected manager-config section name.
     #   2. If multiple distinct values are present, exit with configuration error.
-    #   3. If none are present, exit with configuration error.
+    #   3. If none are present, fall back to the OCI-style DEFAULT profile name.
     # Manager Config Auto-Discovery:
     #   If --manager-config is omitted, we look for a file named `woci_manager.ini` in the same directory
-    #   as the resolved OCI --config-file (or ~/.oci by default). If found, it is loaded.
+    #   as the resolved OCI --config-file. If not found there, we fall back to ~/.oci/woci_manager.ini.
     # Manager INI merging:
     #   Values are merged as [COMMON] base plus the selected section overrides. CLI flags override both.
     # Required runtime values: authz_base_url, token_url, client_id, client_secret, scope, redirect_port.
@@ -1006,6 +1003,12 @@ def main():
         candidate = os.path.join(cfg_dir, MANAGER_DEFAULT_FILENAME)
         if os.path.exists(candidate):
             auto_manager_path = candidate
+        else:
+            fallback = os.path.expanduser(
+                os.path.join(f"~/{OCI_DIRNAME}", MANAGER_DEFAULT_FILENAME)
+            )
+            if fallback != candidate and os.path.exists(fallback):
+                auto_manager_path = fallback
     # Allow manager-config path to be provided via environment variable as well.
     # Precedence: CLI flag (--manager-config) > env var WOCI_MANAGER_CONFIG > auto-discovered file
     mgr_env = os.environ.get("WOCI_MANAGER_CONFIG")
@@ -1038,23 +1041,13 @@ def main():
                     common_data.update({k: v for k, v in cp["COMMON"].items()})
 
                 # Section resolution
-                if args.manager_config_section:
-                    if cp.has_section(args.manager_config_section):
-                        selected_section_name = args.manager_config_section
-                    else:
-                        print(
-                            f"manager-config section '{args.manager_config_section}' not found in {manager_path}",
-                            file=sys.stderr,
-                        )
-                        sys.exit(2)
+                # Section resolution
+                if cli_profile:
+                    if cp.has_section(cli_profile):
+                        selected_section_name = cli_profile
                 else:
-                    preferred = cli_profile
-                    if preferred and cp.has_section(preferred):
-                        selected_section_name = preferred
-                    else:
-                        real_sections = [s for s in cp.sections() if s != "COMMON"]
-                        if real_sections:
-                            selected_section_name = real_sections[0]
+                    if cp.has_section("DEFAULT"):
+                        selected_section_name = "DEFAULT"
 
                 # Merge: [COMMON] base + selected section overrides (if present)
                 ini_section_data = dict(common_data)
@@ -1083,22 +1076,11 @@ def main():
         return DEFAULTS.get(name)
 
     # Profile consistency enforcement (only passthrough --profile and section name)
-    profile_candidates = []
+    # Profile resolution
     if cli_profile:
-        profile_candidates.append(("--profile", cli_profile))
-    if selected_section_name and selected_section_name not in ("COMMON",):
-        profile_candidates.append(("manager-config section", selected_section_name))
-
-    unique_profiles = {val for _, val in profile_candidates}
-    if len(unique_profiles) > 1:
-        details = ", ".join(f"{src}={val}" for src, val in profile_candidates)
-        print(
-            f"Conflicting profile inputs: {details}. Ensure all profile selectors match.",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-    if unique_profiles:
-        args.profile_name = unique_profiles.pop()
+        args.profile_name = cli_profile
+    elif selected_section_name and selected_section_name != "COMMON":
+        args.profile_name = selected_section_name
     else:
         # Fall back to OCI-style DEFAULT profile when nothing was specified
         args.profile_name = "DEFAULT"
@@ -1209,11 +1191,23 @@ def main():
         selected_section_name,
     )
 
-    is_session_cmd = (
-        len(passthrough) >= 2
-        and passthrough[0] == "session"
-        and passthrough[1] in ("authenticate", "refresh")
-    )
+    # Improved detection: scan for "session" command, handling preceding flags
+    session_index = -1
+    for i, arg in enumerate(passthrough):
+        if arg == "session":
+            session_index = i
+            break
+
+    is_session_authenticate = False
+    is_session_cmd = False
+
+    if session_index != -1 and session_index + 1 < len(passthrough):
+        subcmd = passthrough[session_index + 1]
+        if subcmd == "authenticate":
+            is_session_authenticate = True
+            is_session_cmd = True
+        elif subcmd == "refresh":
+            is_session_cmd = True
     if is_session_cmd:
         LOG.info("Session ensured; skipping OCI session passthrough.")
         passthrough = []
@@ -1227,7 +1221,9 @@ def main():
     )
 
     try:
-        current_upst = ensure_session(args, rt_passphrase, rt_iters)
+        current_upst = ensure_session(
+            args, rt_passphrase, rt_iters, reauth=is_session_authenticate
+        )
     except Exception as e:
         LOG.error("Failed to ensure session: %s", e)
         sys.exit(1)

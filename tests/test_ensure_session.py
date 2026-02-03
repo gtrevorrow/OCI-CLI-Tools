@@ -24,16 +24,24 @@ def _write_jwt_with_exp(path: Path, exp_ts: int):
 # should short-circuit and avoid making any HTTP calls for refresh or auth.
 def test_ensure_session_noop_when_upst_valid(tmp_path):
     # Prepare a valid UPST file with future exp
-    base_dir, token_path, key_path, rt_path = mgr.resolve_oci_paths("dummy-config", "prof")
+    base_dir, token_path, key_path, rt_path, pid_path = mgr.resolve_oci_paths(
+        "dummy-config", "prof"
+    )
     # Redirect SESSION_ROOT via monkeypatch of resolve_oci_paths
     def fake_resolve_oci_paths(config_file, profile_name):
         base = tmp_path / profile_name
         base.mkdir(parents=True, exist_ok=True)
-        return str(base), str(base / "token"), str(base / "private_key.pem"), str(base / "refresh_token")
+        return (
+            str(base),
+            str(base / "token"),
+            str(base / "private_key.pem"),
+            str(base / "refresh_token"),
+            str(base / "woci_refresh.pid"),
+        )
 
     with mock.patch.object(mgr, "resolve_oci_paths", side_effect=fake_resolve_oci_paths):
         # After patch, re-compute paths under tmp_path
-        _, token_path, _, rt_path = mgr.resolve_oci_paths("dummy", "prof")
+        _, token_path, _, rt_path, _ = mgr.resolve_oci_paths("dummy", "prof")
         token_path = Path(token_path)
         rt_path = Path(rt_path)
         future_exp = int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp())
@@ -53,10 +61,16 @@ def test_ensure_session_uses_refresh_token_when_upst_expired(tmp_path):
     def fake_resolve_oci_paths(config_file, profile_name):
         base = tmp_path / profile_name
         base.mkdir(parents=True, exist_ok=True)
-        return str(base), str(base / "token"), str(base / "private_key.pem"), str(base / "refresh_token")
+        return (
+            str(base),
+            str(base / "token"),
+            str(base / "private_key.pem"),
+            str(base / "refresh_token"),
+            str(base / "woci_refresh.pid"),
+        )
 
     with mock.patch.object(mgr, "resolve_oci_paths", side_effect=fake_resolve_oci_paths):
-        _, token_path, _, rt_path = mgr.resolve_oci_paths("dummy", "prof")
+        _, token_path, _, rt_path, _ = mgr.resolve_oci_paths("dummy", "prof")
         token_path = Path(token_path)
         rt_path = Path(rt_path)
 
@@ -107,10 +121,16 @@ def test_ensure_session_falls_back_to_auth_code_flow_when_refresh_fails(tmp_path
     def fake_resolve_oci_paths(config_file, profile_name):
         base = tmp_path / profile_name
         base.mkdir(parents=True, exist_ok=True)
-        return str(base), str(base / "token"), str(base / "private_key.pem"), str(base / "refresh_token")
+        return (
+            str(base),
+            str(base / "token"),
+            str(base / "private_key.pem"),
+            str(base / "refresh_token"),
+            str(base / "woci_refresh.pid"),
+        )
 
     with mock.patch.object(mgr, "resolve_oci_paths", side_effect=fake_resolve_oci_paths):
-        _, token_path, _, rt_path = mgr.resolve_oci_paths("dummy", "prof")
+        _, token_path, _, rt_path, _ = mgr.resolve_oci_paths("dummy", "prof")
         token_path = Path(token_path)
         rt_path = Path(rt_path)
 

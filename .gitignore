@@ -53,3 +53,6 @@ Thumbs.db
 /get_ipst.py
 /ipstToAWS.py
 dummy
+
+# Python virtual environment
+.venv/

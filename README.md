@@ -11,8 +11,8 @@ Instead of manually running `oci session authenticate` on a schedule, you:
 - Receive a long-lived **refresh token** and a short-lived **access token**.
 - The wrapper exchanges the access token for an **OCI UPST** and writes it into the standard OCI session layout.
 - On subsequent runs, the wrapper refreshes tokens **offline** (from the stored refresh token) until the refresh token itself expires or becomes invalid.
-- Optional: enable a background auto-refresh thread to refresh the UPST ~10 minutes before expiry for long-running commands.
-- Optional: start a background daemon (`--daemon`) that keeps refreshing even after the CLI exits.
+- **Auto-Refresh Thread** (`--auto-refresh`): Runs *inside* the wrapper process. Keeps the session valid for the duration of a long-running script or job, then exits. Ideal for CI/CD or batch jobs.
+- **Daemon Mode** (`--daemon`): Spawns a detached background process that keeps the session valid indefinitely (until stopped or refresh token expires). Ideal for local development (Terraform, IDEs, multiple terminals).
 - The OCI CLI always runs against a **security_token** profile, but you never have to manage the UPST by hand.
 
 For detailed installation, configuration, and usage examples, see **[`QUICKSTART.md`](./QUICKSTART.md)**.
@@ -133,6 +133,17 @@ From the user’s perspective, this means:
 
 ---
 
+## Security and Operational Notes
+
+- **Refresh token sensitivity**: The refresh token is the long-lived credential. Prefer encryption at rest (`encrypt_refresh_token = true`) if your environment supports password entry or secure env var injection.
+- **Session token lifetime**: Capped at 60 minutes (OCI limit). The wrapper automatically renews it via the refresh token before running commands.
+- **Encryption details**: Passphrase derivation uses PBKDF2-HMAC-SHA256 (200k iterations) for a balanced cost.
+- **Secrets management**: Avoid committing `woci_manager.ini` if it contains a `client_secret`.
+- **Logging**: Tokens are never logged; only the authorization URL is printed.
+- **Rotation**: Supports refresh token rotation; if the provider returns a new refresh token, the script updates the stored file.
+
+---
+
 ## Where to go next
 
 For full configuration details, including:
@@ -149,4 +160,5 @@ refer to **[`QUICKSTART.md`](./QUICKSTART.md)**.
 - Versioning follows Semantic Versioning and is automated via `python-semantic-release`.
 - Commit messages must follow Conventional Commits (e.g., `feat: add oauth flow`, `fix: handle missing scope`, `chore!: drop py38`).
 - Releases are produced from the `main` branch; the pipeline tags `v<major.minor.patch>`, updates the changelog, and creates a GitHub release.
+- The pipeline also maintains floating tags `latest` and `v<major>` that always point to the most recent release.
 - Run `semantic-release publish --noop --verbosity=DEBUG` locally to dry-run if you need to validate changes before merging to `main`.

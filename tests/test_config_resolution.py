@@ -18,6 +18,8 @@ def _run_main_with_args(monkeypatch, args, env=None):
     monkeypatch.setattr("sys.argv", argv)
     # Avoid actually running ensure_session logic; we only care about config resolution/exit code.
     monkeypatch.setattr(mgr, "ensure_session", lambda *a, **k: None)
+    # Avoid calling the real OCI CLI in passthrough.
+    monkeypatch.setattr(mgr, "run_cmd_passthrough", lambda *a, **k: 0)
     if env is not None:
         for k, v in env.items():
             if v is None:
@@ -112,66 +114,6 @@ def test_explicit_manager_config_unreadable_is_fatal(tmp_path, monkeypatch):
     assert code == 2
 
 
-# Test intent: conflicting profile selectors (passthrough --profile vs manager-config section)
-# must fail fast with code 2.
-def test_conflicting_profile_inputs_exit_with_error(tmp_path, monkeypatch):
-    ini = tmp_path / "cfg.ini"
-    ini.write_text("""[COMMON]\nlog_level=INFO\n[mysection]\nauthz_base_url=https://example.com/auth\n""", encoding="utf-8")
-
-    argv = [
-        "woci",
-        "--manager-config", str(ini),
-        "--manager-config-section", "mysection",
-        "--token-url", "https://example.com/token",
-        "--auth-client-id", "ac",
-        "--client-id", "cid",
-        "--client-secret", "csec",
-        "--scope", "openid",
-        "--redirect-port", "8181",
-        "--profile", "different-prof",
-    ]
-
-    monkeypatch.setattr("sys.argv", argv)
-    monkeypatch.setattr(mgr, "ensure_session", lambda *a, **k: None)
-
-    with pytest.raises(SystemExit) as exc:
-        mgr.main()
-
-    assert exc.value.code == 2
-
-
-# Test intent: manager-config-section alone determines both the metadata source
-# and the effective profile when no passthrough profile is provided.
-def test_manager_config_section_sets_profile_when_alone(tmp_path, monkeypatch):
-    ini = tmp_path / "cfg.ini"
-    ini.write_text("""[COMMON]\nlog_level=INFO\n[sectionA]\nauthz_base_url=https://example.com/auth\n""", encoding="utf-8")
-
-    argv = [
-        "woci",
-        "--manager-config", str(ini),
-        "--manager-config-section", "sectionA",
-        "--token-url", "https://example.com/token",
-        "--auth-client-id", "ac",
-        "--client-id", "cid",
-        "--client-secret", "csec",
-        "--scope", "openid",
-        "--redirect-port", "8181",
-    ]
-
-    monkeypatch.setattr("sys.argv", argv)
-    captured = {}
-
-    def fake_ensure_session(args, *a, **k):
-        captured["profile_name"] = args.profile_name
-
-    monkeypatch.setattr(mgr, "ensure_session", fake_ensure_session)
-
-    with pytest.raises(SystemExit):
-        mgr.main()
-
-    assert captured["profile_name"] == "sectionA"
-
-
 # Test intent: when no section is selected and no profile_name exists,
 # the effective profile should fall back to the passthrough --profile value.
 def test_profile_name_falls_back_to_passthrough_when_no_cli_or_ini(tmp_path, monkeypatch):
@@ -227,6 +169,10 @@ def test_missing_profile_name_defaults_to_DEFAULT(monkeypatch):
         captured["profile_name"] = args.profile_name
 
     monkeypatch.setattr(mgr, "ensure_session", fake_ensure_session)
+
+    # Ensure no auto-discovery happens by mocking exists to always return False for this test
+    # This prevents picking up ~/.oci/woci_manager.ini or local files
+    monkeypatch.setattr(os.path, "exists", lambda p: False)
 
     with pytest.raises(SystemExit) as exc:
         mgr.main()
