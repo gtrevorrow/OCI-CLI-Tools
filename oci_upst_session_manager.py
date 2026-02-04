@@ -544,20 +544,11 @@ def perform_exchange_and_save(
         args.config_file, args.profile_name
     )
     key = None  # type: ignore[assignment]
+    generated_key = False
     if not os.path.exists(key_path):
-        LOG.info("No key found; generating new RSA key and updating profile.")
+        LOG.info("No key found; generating new RSA key.")
         key = generate_rsa(RSA_KEY_BITS)
-        write_secret_file(
-            key_path,
-            key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption(),
-            ),
-        )
-        update_oci_config(
-            args.config_file, args.profile_name, args.region, key_path, token_path
-        )
+        generated_key = True
     else:
         with open(key_path, "rb") as f:
             key = serialization.load_pem_private_key(f.read(), password=None)
@@ -571,6 +562,20 @@ def perform_exchange_and_save(
         exchange_url, args.client_id, args.client_secret or "", pub_b64, access_token
     )
     upst = exch["token"]
+
+    if generated_key:
+        write_secret_file(
+            key_path,
+            key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            ),
+        )
+        update_oci_config(
+            args.config_file, args.profile_name, args.region, key_path, token_path
+        )
+
     write_secret_file(token_path, upst.encode())
     if maybe_refresh_token:
         save_refresh_token(rt_path, maybe_refresh_token, rt_passphrase, rt_iterations)
