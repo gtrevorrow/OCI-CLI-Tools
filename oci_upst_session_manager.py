@@ -514,36 +514,6 @@ def update_oci_config(
         pass
 
 
-def save_initial_materials(
-    args,
-    key,
-    upst: str,
-    refresh_token: str,
-    rt_passphrase: Optional[str],
-    rt_iterations: int,
-):
-    base_dir, token_path, key_path, rt_path, pid_path = resolve_oci_paths(
-        args.config_file, args.profile_name
-    )
-    write_secret_file(
-        key_path,
-        key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        ),
-    )
-    write_secret_file(token_path, upst.encode())
-    save_refresh_token(rt_path, refresh_token, rt_passphrase, rt_iterations)
-    update_oci_config(
-        args.config_file, args.profile_name, args.region, key_path, token_path
-    )
-    LOG.info(
-        "Wrote key, UPST, and refresh token; updated OCI config for profile '%s'",
-        args.profile_name,
-    )
-
-
 def decode_jwt_exp(token_str: str) -> Optional[datetime]:
     try:
         parts = token_str.split(".")
