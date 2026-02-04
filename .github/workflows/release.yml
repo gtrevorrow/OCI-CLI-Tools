@@ -59,8 +59,8 @@ jobs:
                   major="${latest_tag#v}"
                   major="${major%%.*}"
                   git tag -f latest "$latest_tag"
-                                    git push --force origin latest
-                                    if [ "$major" != "0" ]; then
-                                        git tag -f "v${major}" "$latest_tag"
-                                        git push --force origin "v${major}"
-                                    fi
+                  git push --force origin latest
+                  if [ "$major" != "0" ]; then
+                    git tag -f "v${major}" "$latest_tag"
+                    git push --force origin "v${major}"
+                  fi
