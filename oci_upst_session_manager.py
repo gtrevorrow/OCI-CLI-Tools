@@ -118,7 +118,6 @@ def normalize_oci_config(config_file: str) -> None:
         lines = open(config_file, "r", encoding="utf-8").read().splitlines()
     except Exception:
         return
-
     # Track last occurrence of each key per section
     last_idx: dict[tuple[str, str], int] = {}
     section = ""
@@ -160,6 +159,31 @@ def normalize_oci_config(config_file: str) -> None:
             f.write("\n".join(out) + "\n")
     except Exception:
         return
+
+
+def get_oci_profile_value(
+    config_file: str, profile_name: str, key_name: str
+) -> Optional[str]:
+    if not os.path.exists(config_file):
+        return None
+    try:
+        lines = open(config_file, "r", encoding="utf-8").read().splitlines()
+    except Exception:
+        return None
+
+    in_target = False
+    last_val = None
+    target_header = f"[{profile_name}]"
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            in_target = stripped == target_header
+            continue
+        if in_target and "=" in stripped and not stripped.startswith("="):
+            key, val = stripped.split("=", 1)
+            if key.strip() == key_name:
+                last_val = val.strip()
+    return last_val
 
 
 # ---------- OAuth PKCE (S256) helpers ----------
@@ -442,6 +466,18 @@ def resolve_oci_paths(config_file: str, profile_name: str):
     base_dir = os.path.join(sessions_root, profile_name)
     token_path = os.path.join(base_dir, SESSION_TOKEN_FILENAME)
     key_path = os.path.join(base_dir, SESSION_KEY_FILENAME)
+    cfg_key = get_oci_profile_value(config_file, profile_name, "key_file")
+    if cfg_key:
+        expanded = os.path.expanduser(cfg_key)
+        if not os.path.isabs(expanded):
+            cfg_dir = os.path.dirname(config_file)
+            expanded = os.path.abspath(os.path.join(cfg_dir, expanded))
+        try:
+            base_abs = os.path.abspath(base_dir)
+            if os.path.commonpath([base_abs, os.path.abspath(expanded)]) == base_abs:
+                key_path = expanded
+        except Exception:
+            pass
     rt_path = os.path.join(base_dir, SESSION_REFRESH_TOKEN_FILENAME)
     pid_path = os.path.join(base_dir, SESSION_DAEMON_PID_FILENAME)
     return base_dir, token_path, key_path, rt_path, pid_path
@@ -514,36 +550,6 @@ def update_oci_config(
         pass
 
 
-def save_initial_materials(
-    args,
-    key,
-    upst: str,
-    refresh_token: str,
-    rt_passphrase: Optional[str],
-    rt_iterations: int,
-):
-    base_dir, token_path, key_path, rt_path, pid_path = resolve_oci_paths(
-        args.config_file, args.profile_name
-    )
-    write_secret_file(
-        key_path,
-        key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        ),
-    )
-    write_secret_file(token_path, upst.encode())
-    save_refresh_token(rt_path, refresh_token, rt_passphrase, rt_iterations)
-    update_oci_config(
-        args.config_file, args.profile_name, args.region, key_path, token_path
-    )
-    LOG.info(
-        "Wrote key, UPST, and refresh token; updated OCI config for profile '%s'",
-        args.profile_name,
-    )
-
-
 def decode_jwt_exp(token_str: str) -> Optional[datetime]:
     try:
         parts = token_str.split(".")
@@ -574,20 +580,11 @@ def perform_exchange_and_save(
         args.config_file, args.profile_name
     )
     key = None  # type: ignore[assignment]
+    generated_key = False
     if not os.path.exists(key_path):
-        LOG.info("No key found; generating new RSA key and updating profile.")
+        LOG.info("No key found; generating new RSA key.")
         key = generate_rsa(RSA_KEY_BITS)
-        write_secret_file(
-            key_path,
-            key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption(),
-            ),
-        )
-        update_oci_config(
-            args.config_file, args.profile_name, args.region, key_path, token_path
-        )
+        generated_key = True
     else:
         with open(key_path, "rb") as f:
             key = serialization.load_pem_private_key(f.read(), password=None)
@@ -601,6 +598,20 @@ def perform_exchange_and_save(
         exchange_url, args.client_id, args.client_secret or "", pub_b64, access_token
     )
     upst = exch["token"]
+
+    if generated_key:
+        write_secret_file(
+            key_path,
+            key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            ),
+        )
+        update_oci_config(
+            args.config_file, args.profile_name, args.region, key_path, token_path
+        )
+
     write_secret_file(token_path, upst.encode())
     if maybe_refresh_token:
         save_refresh_token(rt_path, maybe_refresh_token, rt_passphrase, rt_iterations)
