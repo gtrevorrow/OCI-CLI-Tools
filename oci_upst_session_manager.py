@@ -118,7 +118,6 @@ def normalize_oci_config(config_file: str) -> None:
         lines = open(config_file, "r", encoding="utf-8").read().splitlines()
     except Exception:
         return
-
     # Track last occurrence of each key per section
     last_idx: dict[tuple[str, str], int] = {}
     section = ""
@@ -160,6 +159,31 @@ def normalize_oci_config(config_file: str) -> None:
             f.write("\n".join(out) + "\n")
     except Exception:
         return
+
+
+def get_oci_profile_value(
+    config_file: str, profile_name: str, key_name: str
+) -> Optional[str]:
+    if not os.path.exists(config_file):
+        return None
+    try:
+        lines = open(config_file, "r", encoding="utf-8").read().splitlines()
+    except Exception:
+        return None
+
+    in_target = False
+    last_val = None
+    target_header = f"[{profile_name}]"
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            in_target = stripped == target_header
+            continue
+        if in_target and "=" in stripped and not stripped.startswith("="):
+            key, val = stripped.split("=", 1)
+            if key.strip() == key_name:
+                last_val = val.strip()
+    return last_val
 
 
 # ---------- OAuth PKCE (S256) helpers ----------
@@ -442,6 +466,18 @@ def resolve_oci_paths(config_file: str, profile_name: str):
     base_dir = os.path.join(sessions_root, profile_name)
     token_path = os.path.join(base_dir, SESSION_TOKEN_FILENAME)
     key_path = os.path.join(base_dir, SESSION_KEY_FILENAME)
+    cfg_key = get_oci_profile_value(config_file, profile_name, "key_file")
+    if cfg_key:
+        expanded = os.path.expanduser(cfg_key)
+        if not os.path.isabs(expanded):
+            cfg_dir = os.path.dirname(config_file)
+            expanded = os.path.abspath(os.path.join(cfg_dir, expanded))
+        try:
+            base_abs = os.path.abspath(base_dir)
+            if os.path.commonpath([base_abs, os.path.abspath(expanded)]) == base_abs:
+                key_path = expanded
+        except Exception:
+            pass
     rt_path = os.path.join(base_dir, SESSION_REFRESH_TOKEN_FILENAME)
     pid_path = os.path.join(base_dir, SESSION_DAEMON_PID_FILENAME)
     return base_dir, token_path, key_path, rt_path, pid_path
