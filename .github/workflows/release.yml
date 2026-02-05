@@ -34,23 +34,6 @@ jobs:
               run: |
                   python -m pytest -q
 
-            - name: Ensure initial tag
-              if: github.event_name == 'push'
-              shell: bash
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: |
-                  set -euo pipefail
-                  if git tag --list 'v*' | grep -q .; then
-                    exit 0
-                  fi
-                  git config user.name "github-actions[bot]"
-                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-                  version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' pyproject.toml | head -n1)"
-                  tag="v${version}"
-                  git tag "$tag"
-                  git push origin "$tag"
-
             - name: Semantic release
               if: github.event_name == 'push'
               env:
@@ -76,5 +59,8 @@ jobs:
                   major="${latest_tag#v}"
                   major="${major%%.*}"
                   git tag -f latest "$latest_tag"
-                  git tag -f "v${major}" "$latest_tag"
-                  git push --force origin latest "v${major}"
+                  git push --force origin latest
+                  if [ "$major" != "0" ]; then
+                    git tag -f "v${major}" "$latest_tag"
+                    git push --force origin "v${major}"
+                  fi
